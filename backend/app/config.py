@@ -28,8 +28,7 @@ class Settings(BaseSettings):
     watcha_userinfo_url: str = "https://watcha.cn/oauth/api/userinfo"
     watcha_scope: str = "read"
 
-    # 观猹 user_id 白名单（逗号分隔）
-    staff_watcha_ids: str = ""
+    # 平台管理员的观猹 user_id 白名单（逗号分隔）；社团内角色在后台按社团管理
     admin_watcha_ids: str = ""
 
     # TokenDance（站点兜底 Key + 归因）
@@ -44,9 +43,6 @@ class Settings(BaseSettings):
     ai_quota_chat_daily: int = 20
     ai_quota_image_daily: int = 2
     ai_quota_staff_multiplier: int = 10
-
-    def staff_ids(self) -> set[int]:
-        return {int(x) for x in self.staff_watcha_ids.split(",") if x.strip().isdigit()}
 
     def admin_ids(self) -> set[int]:
         return {int(x) for x in self.admin_watcha_ids.split(",") if x.strip().isdigit()}

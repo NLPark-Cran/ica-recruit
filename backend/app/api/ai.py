@@ -1,7 +1,7 @@
-"""AI 赋能：聊天顾问（SSE 流式）、海报生成、数据助手（staff/admin）、活动文案草稿。
+"""AI 赋能：聊天顾问 + 海报生成（全局）；数据助手 + 活动文案（社团作用域）。
 
 额度策略：用户已连接 TokenPay（BYOK）→ 用用户自己的 Key，不限站点配额；
-未连接 → 站点兜底 Key + 每日配额（staff/admin 配额 ×10）。
+未连接 → 站点兜底 Key + 每日配额（社团职员/管理员 ×10）。
 """
 
 import json
@@ -15,14 +15,18 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import get_settings
 from app.db import DB
-from app.deps import AdminUser, CurrentUser, StaffUser
-from app.models import OAuthAccount, Role, UsageCounter
+from app.deps import ClubAdmin, ClubDep, ClubStaff, CurrentUser
+from app.models import ClubMember, OAuthAccount, UsageCounter
 from app.schemas import ActivityDraftIn, ChatIn, DataAssistantIn, PosterIn
 from app.security import decrypt_text
 from app.services import tokendance
 
 settings = get_settings()
+
+# 全局 AI：/api/ai/...
 router = APIRouter(prefix="/ai", tags=["ai"])
+# 社团 AI：/api/clubs/{slug}/ai/...
+club_router = APIRouter(prefix="/clubs/{slug}/ai", tags=["club-ai"])
 
 
 async def _user_key(db, user) -> str | None:
@@ -34,6 +38,10 @@ async def _user_key(db, user) -> str | None:
     return decrypt_text(acct.payload_enc) if acct else None
 
 
+async def _is_staff_anywhere(db, user) -> bool:
+    return bool(await db.scalar(select(ClubMember.id).where(ClubMember.user_id == user.id).limit(1)))
+
+
 async def _check_quota(db, user, kind: str) -> str:
     """返回本次调用使用的 API Key；超站点配额时 429。"""
     key = await _user_key(db, user)
@@ -42,7 +50,7 @@ async def _check_quota(db, user, kind: str) -> str:
     if not settings.tokendance_api_key:
         raise HTTPException(503, "站点 AI 额度未配置，请连接你的 Token 钱包")
     limit = settings.ai_quota_chat_daily if kind == "chat" else settings.ai_quota_image_daily
-    if user.role in (Role.staff.value, Role.admin.value):
+    if user.is_platform_admin or await _is_staff_anywhere(db, user):
         limit *= settings.ai_quota_staff_multiplier
     day = datetime.now(UTC).date()
     stmt = (
@@ -68,12 +76,12 @@ def _error_response(e: tokendance.TokenDanceError) -> JSONResponse:
     )
 
 
-# ---------- AI 国际交流顾问 ----------
+# ---------- AI 顾问（全局，面向所有登录用户） ----------
 
 CHAT_SYSTEM = (
-    "你是杭州电子科技大学国际交流协会（ICA）的 AI 顾问「小际」。"
-    "你热情、靠谱、略带幽默，回答与海外交换、留学申请、语言考试（雅思/托福）、"
-    "签证、跨文化交流、协会活动相关的问题；对不确定的具体政策要建议同学咨询协会或学校国际处。"
+    "你是大学校园社团招新平台的 AI 顾问「小际」，由杭州电子科技大学国际交流协会（ICA）发起。"
+    "你热情、靠谱、略带幽默，回答与社团招新、海外交换、留学申请、语言考试（雅思/托福）、"
+    "签证、跨文化交流相关的问题；对不确定的具体政策要建议同学咨询对应社团或学校国际处。"
     "回答使用简体中文，适度使用短段落与列表，单次回答不超过 300 字。"
 )
 
@@ -97,17 +105,12 @@ async def chat(db: DB, user: CurrentUser, body: ChatIn):
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-# ---------- AI 招新海报 ----------
-
-
 @router.post("/poster")
 async def poster(db: DB, user: CurrentUser, body: PosterIn):
     key = await _check_quota(db, user, "image")
     prompt = (
-        "为杭州电子科技大学国际交流协会（ICA）生成一张竖版招新海报，"
-        "风格年轻、国际化、色彩明亮，适合大学生社团宣传。"
-        f"海报主题文案：{body.prompt}。"
-        "画面需包含中英文混合排版，留出标题区域，不要出现乱码文字。"
+        "为大学社团招新生成一张竖版海报，可爱插画风、色彩明亮、适合大学生。"
+        f"海报主题：{body.prompt}。画面留出标题区域，不要出现乱码文字。"
     )
     try:
         url = await tokendance.generate_image(key, prompt, size="2K")
@@ -116,31 +119,34 @@ async def poster(db: DB, user: CurrentUser, body: PosterIn):
     return {"url": url}
 
 
-# ---------- AI 数据助手（staff/admin，只读 SQL 白名单）----------
+# ---------- AI 数据助手（社团 staff/admin，只读 SQL 白名单） ----------
 
-_ALLOWED_TABLES = {"applications", "draws", "users", "prizes", "activities"}
+_SQL_SYSTEM = (
+    "你是 PostgreSQL 数据分析助手。数据库是多租户社团招新平台，所有数据按 club_id 隔离。\n"
+    "当前会话只允许查询 club_id = '{club_id}' 的数据，每条 SQL 必须带上该过滤条件。\n"
+    "表结构：\n"
+    "- users(id uuid, watcha_user_id bigint, nickname text, created_at timestamptz)\n"
+    "- applications(id uuid, club_id uuid, user_id uuid, name text, student_id text, college text, "
+    "grade text, departments jsonb, allow_adjust bool, created_at timestamptz)\n"
+    "- draws(id uuid, club_id uuid, user_id uuid, round int, prize_id uuid, prize_name text, "
+    "code text, redeemed_at timestamptz, created_at timestamptz)\n"
+    "- prizes(id uuid, club_id uuid, round int, name text, tier text, total_stock int, issued int, "
+    "weight int, daily_quota int, is_virtual bool, active bool)\n"
+    "- activities(id uuid, club_id uuid, title text, summary text, location text, "
+    "starts_at timestamptz, published bool)\n"
+    "规则：只输出一条只读 SELECT 语句，不得包含其他任何文字；"
+    "禁止查询 phone/wechat/student_id 等敏感列，除非问题明确要求统计其数量（用 count 而非列出）；"
+    "必须带 LIMIT 且不超过 100；不要输出 markdown 代码块。"
+)
+
+_ALLOWED_RE = re.compile(r"\b(applications|draws|users|prizes|activities)\b")
 _FORBIDDEN = re.compile(
     r"\b(insert|update|delete|drop|alter|truncate|grant|revoke|create|copy|execute|call|set)\b",
     re.IGNORECASE,
 )
 
-_SQL_SYSTEM = (
-    "你是 PostgreSQL 数据分析助手。数据库表结构：\n"
-    "- users(id uuid, watcha_user_id bigint, nickname text, role text, created_at timestamptz)\n"
-    "- applications(id uuid, user_id uuid, name text, student_id text, college text, grade text, "
-    "phone text, wechat text, departments jsonb, allow_adjust bool, intro text, created_at timestamptz)\n"
-    "- draws(id uuid, user_id uuid, round int, prize_id uuid, prize_name text, code text, "
-    "virtual_code text, redeemed_at timestamptz, created_at timestamptz)\n"
-    "- prizes(id uuid, round int, name text, tier text, total_stock int, issued int, "
-    "weight int, daily_quota int, is_virtual bool, active bool)\n"
-    "- activities(id uuid, title text, summary text, location text, starts_at timestamptz, published bool)\n"
-    "规则：只输出一条只读 SELECT 语句，不得包含其他任何文字；"
-    "不要查询 phone/wechat/student_id 等敏感列除非问题明确要求；必须带 LIMIT 且不超过 100；"
-    "不要输出 markdown 代码块。"
-)
 
-
-def _validate_sql(sql: str) -> str:
+def _validate_sql(sql: str, club_id: str) -> str:
     sql = sql.strip().strip("`")
     sql = re.sub(r"^sql\s*", "", sql, flags=re.IGNORECASE).strip()
     if ";" in sql.rstrip(";"):
@@ -152,23 +158,26 @@ def _validate_sql(sql: str) -> str:
         raise HTTPException(400, "查询包含不允许的关键字")
     if "--" in sql or "/*" in sql:
         raise HTTPException(400, "查询包含注释")
+    if club_id not in sql:
+        raise HTTPException(400, "查询缺少社团数据隔离条件，换个问法试试")
     if "limit" not in sql.lower():
         sql += " LIMIT 100"
     return sql
 
 
-@router.post("/data-assistant")
-async def data_assistant(db: DB, staff: StaffUser, body: DataAssistantIn):
-    key = await _check_quota(db, staff, "chat")
+@club_router.post("/data-assistant")
+async def data_assistant(db: DB, club: ClubDep, staff: ClubStaff, body: DataAssistantIn):
+    key = await _check_quota(db, await _staff_user(db, staff), "chat")
+    cid = str(club.id)
     try:
         sql = await tokendance.chat_once(
             key,
             [
-                {"role": "system", "content": _SQL_SYSTEM},
+                {"role": "system", "content": _SQL_SYSTEM.format(club_id=cid)},
                 {"role": "user", "content": body.question},
             ],
         )
-        sql = _validate_sql(sql)
+        sql = _validate_sql(sql, cid)
     except tokendance.TokenDanceError as e:
         return _error_response(e)
 
@@ -191,14 +200,20 @@ async def data_assistant(db: DB, staff: StaffUser, body: DataAssistantIn):
     return {"sql": sql, "rows": rows, "summary": summary}
 
 
-# ---------- 活动文案草稿（admin） ----------
+async def _staff_user(db, staff: ClubMember):
+    from app.models import User
+
+    return await db.get(User, staff.user_id)
 
 
-@router.post("/activity-draft")
-async def activity_draft(db: DB, admin: AdminUser, body: ActivityDraftIn):
-    key = await _check_quota(db, admin, "chat")
+# ---------- 活动文案草稿（社团 admin） ----------
+
+
+@club_router.post("/activity-draft")
+async def activity_draft(db: DB, club: ClubDep, admin: ClubAdmin, body: ActivityDraftIn):
+    key = await _check_quota(db, await _staff_user(db, admin), "chat")
     prompt = (
-        "你是杭州电子科技大学国际交流协会（ICA）的宣传干事。根据以下关键词，"
+        f"你是大学社团「{club.name}」的宣传干事。根据以下关键词，"
         "产出一个活动草稿，严格输出 JSON："
         '{"title": "活动标题", "summary": "一句话简介(50字内)", "detail": "活动详情(200字内, 可用换行)"}。'
         "不要输出任何其他文字。关键词：" + body.keywords

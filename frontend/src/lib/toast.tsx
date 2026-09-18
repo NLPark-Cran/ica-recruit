@@ -19,9 +19,9 @@ export function useToast() {
 }
 
 const TYPE_CLASS: Record<ToastType, string> = {
-  info: 'bg-grape text-white',
-  success: 'bg-mint text-grape-dark',
-  error: 'bg-tangerine text-white',
+  info: 'bg-sky text-ink',
+  success: 'bg-leaf text-white',
+  error: 'bg-blush text-ink',
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -39,11 +39,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 top-4 z-[100] flex flex-col items-center gap-2 px-4 safe-top">
+      <div className="safe-top pointer-events-none fixed inset-x-0 top-4 z-[100] flex flex-col items-center gap-2 px-4">
         {items.map((t) => (
           <div
             key={t.id}
-            className={`animate-pop max-w-sm rounded-2xl px-5 py-3 text-sm font-bold shadow-card ${TYPE_CLASS[t.type]}`}
+            className={`animate-pop max-w-sm rounded-2xl border-[3px] border-ink px-5 py-3 text-sm font-black shadow-sticker ${TYPE_CLASS[t.type]}`}
             role="status"
           >
             {t.text}

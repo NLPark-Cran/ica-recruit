@@ -32,17 +32,17 @@ export default function ByokPanel({ highlight = false }: Props) {
 
   if (user.has_tokendance_key) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border-2 border-mint/40 bg-white p-4 shadow-card">
+      <div className="flex items-center gap-3 rounded-2xl border-2 border-leaf/40 bg-white p-4 shadow-sticker">
         <span className="text-2xl">🪙</span>
         <div className="flex-1">
-          <p className="text-sm font-black text-grape">Token 钱包已连接</p>
-          <p className="text-xs text-grape/50">AI 功能正在使用你自己的额度，不限站点配额</p>
+          <p className="text-sm font-black text-ink">Token 钱包已连接</p>
+          <p className="text-xs text-ink/50">AI 功能正在使用你自己的额度，不限站点配额</p>
         </div>
         <button
           type="button"
           onClick={() => void disconnect()}
           disabled={disconnecting}
-          className="min-h-11 shrink-0 rounded-full border-2 border-grape/20 px-4 text-sm font-bold text-grape disabled:opacity-50"
+          className="min-h-11 shrink-0 rounded-full border-2 border-ink/20 px-4 text-sm font-bold text-ink disabled:opacity-50"
         >
           {disconnecting ? '断开中…' : '断开'}
         </button>
@@ -52,19 +52,19 @@ export default function ByokPanel({ highlight = false }: Props) {
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-2xl border-2 bg-white p-4 shadow-card ${
-        highlight ? 'animate-pulse border-tangerine' : 'border-grape/10'
+      className={`flex items-center gap-3 rounded-2xl border-2 bg-white p-4 shadow-sticker ${
+        highlight ? 'animate-pulse border-blush' : 'border-ink'
       }`}
     >
       <span className="text-2xl">🪙</span>
       <div className="flex-1">
-        <p className="text-sm font-black text-grape">连接 Token 钱包</p>
-        <p className="text-xs text-grape/50">连接后使用自己的 AI 额度，不受站点每日配额限制</p>
+        <p className="text-sm font-black text-ink">连接 Token 钱包</p>
+        <p className="text-xs text-ink/50">连接后使用自己的 AI 额度，不受站点每日配额限制</p>
       </div>
       <a
         href="/api/byok/connect"
         className={`flex min-h-11 shrink-0 items-center rounded-full px-4 text-sm font-bold text-white shadow-sticker transition-transform active:scale-95 ${
-          highlight ? 'bg-tangerine' : 'bg-grape'
+          highlight ? 'bg-blush' : 'bg-ink'
         }`}
       >
         去连接 →

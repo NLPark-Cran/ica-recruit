@@ -1,8 +1,8 @@
-# ICA 招新综合平台
+# 社团招新 GO（clubshelp）
 
-杭州电子科技大学国际交流协会（ICA）2026 百团大战招新平台：**观猹登录 → 进群礼抽奖 → 报名表单 → 报名礼抽奖 → 现场核销**，外加社团活动展示与 AI 赋能（TokenDance / TokenPay）。
+面向高校社团的多租户招新综合平台：**观猹登录 → 进群礼抽奖 → 报名表单 → 报名礼抽奖 → 现场核销**，外加社团活动展示与 AI 赋能（TokenDance / TokenPay）。任何社团都可以自助入驻，拥有独立的门户、奖池、报名数据与后台。
 
-线上地址：<https://ica.hub.tt2.li>
+线上地址：<https://ica.hub.tt2.li> ｜ 首个入驻社团：杭电国际交流协会 ICA（`/c/ica`）
 
 ## 架构
 
@@ -19,29 +19,38 @@
 
 ## 技术栈
 
-- **前端**：Vite 7 · React 19 · TypeScript strict · Tailwind CSS 4 · react-router v7 · motion · qrcode
+- **前端**：Vite 7 · React 19 · TypeScript strict · Tailwind CSS 4 · react-router v7 · motion · qrcode；观猹开学季可爱卡通风（粗描边 + 贴纸硬阴影，天蓝/草绿/柠檬黄）
 - **后端**：Python 3.13 · FastAPI · SQLAlchemy 2 (async) · asyncpg · Redis · PyJWT · Fernet
-- **登录**：观猹 OAuth2（Authorization Code + S256 PKCE），JWT HttpOnly Cookie 会话
+- **登录**：观猹 OAuth2（Authorization Code + S256 PKCE），JWT HttpOnly Cookie 会话；全员观猹登录，社团角色按 `club_members` 表隔离
 - **AI**：TokenDance 网关（deepseek-v4.1-flash 对话 / seedream-5.0-pro 生图），支持 TokenPay BYOK 用户自带 Key，全部调用带 `X-App-URL` 归因
 
-## 目录结构
+## 多租户模型
 
-```
-backend/            FastAPI 后端
-  app/
-    api/            路由层（auth/byok/applications/lottery/redeem/activities/admin/ai）
-    services/       业务层（lottery 抽奖事务 / tokendance 网关客户端）
-    models.py       SQLAlchemy 模型    schemas.py  Pydantic 出入参
-    config.py       pydantic-settings  deps.py     鉴权依赖
-    security.py     JWT / Fernet / PKCE / 核销码
-    seed.py         建表 + 种子奖池
-  tests/            pytest（库存并发/核销唯一/学号去重/幂等）
-frontend/           Vite + React 前端（src/{pages,components,features,lib,hooks}）
-assets/             AI 生成素材（scripts/gen_assets.py 可重新生成）
-deploy/             systemd unit / nginx 配置（唯一事实源）/ .env.example
-scripts/            素材生成、压测等运维脚本
-docs/               项目文档
-```
+- `users` 全局（观猹账号）；`clubs` 社团主体（slug 为 URL 标识，如 `/c/ica`）
+- 报名/奖池/抽奖/活动全部按 `club_id` 隔离；同一用户可报名多个社团，同一学号可跨社团报名
+- 任何登录用户可 `POST /api/clubs` 自助入驻，创建者自动成为该社团管理员；管理员可在后台按观猹 user_id 增删 staff/admin
+- 平台管理员由 `.env` 的 `ADMIN_WATCHA_IDS` 决定（拥有全社团管理权）
+
+## 核心业务规则
+
+- **两轮抽奖独立奖池**（每社团独立配置）：第 1 轮（进群礼）登录即可抽；第 2 轮（报名礼）需先提交该社团报名表
+- 每人每社团每轮限抽一次，重复请求幂等返回首次结果
+- 库存/每日配额在事务内行锁校验，并发不超卖（见 `tests/test_core.py::test_concurrent_draws_never_oversell`）
+- 实物奖品中奖生成唯一核销码（如 `ICA1-XXXXXXXX`），社团工作人员在 `/c/{slug}/redeem` 核销，同码不可重复、跨社团不可核销
+- 虚拟奖品（兑换码类）从兑换码池原子分配，中奖页直接展示；实体纪念卡（如 TokenDance 青春卡）按实物奖品配置即可
+- 报名表社团内学号唯一去重，本人重复提交视为修改
+
+## 页面地图
+
+| 路径 | 说明 |
+|---|---|
+| `/` | 平台首页：介绍 + 入驻社团列表 |
+| `/c/{slug}` | 社团门户（介绍/部门/活动/招新入口） |
+| `/c/{slug}/flow` | 招新任务流：抽奖 → 报名 → 再抽奖 |
+| `/c/{slug}/redeem` | 核销台（本社团 staff/admin） |
+| `/c/{slug}/admin` | 社团后台（仪表盘/奖池/活动/成员/设置/数据助手） |
+| `/new-club` | 社团入驻 |
+| `/ai` | AI 顾问 + AI 海报 + Token 钱包 |
 
 ## 本地开发
 
@@ -49,7 +58,7 @@ docs/               项目文档
 # 后端
 cd backend && uv sync
 cp ../deploy/.env.example .env   # 填写配置，开发时 DEBUG=true
-uv run python -m app.seed        # 建表 + 种子数据
+uv run python -m app.seed        # 建表 + 种子数据（含 ica 社团）
 uv run uvicorn app.main:app --port 8020 --reload
 
 # 前端（另开终端，已内置 /api → 8020 代理）
@@ -71,27 +80,16 @@ cd frontend && pnpm build         # 产物由 nginx 直出
 
 更新后端：`sudo systemctl restart ica-backend`；更新前端：重新 `pnpm build`。
 
-## 核心业务规则
-
-- **两轮抽奖独立奖池**：第 1 轮（进群礼）登录即可抽；第 2 轮（报名礼）需先提交报名表
-- 每人每轮限抽一次，重复请求幂等返回首次结果
-- 库存/每日配额在事务内行锁校验，并发不超卖（见 `tests/test_core.py::test_concurrent_draws_never_oversell`）
-- 实物奖品中奖生成唯一核销码（如 `ICA1-XXXXXXXX`），工作人员在 `/redeem` 核销，同码不可重复核销
-- 虚拟奖品（TokenDance 青春卡）从兑换码池原子分配，中奖页直接展示兑换码，无需现场核销；兑换码由管理员在后台导入（库存自动累加）
-- 报名表学号全局唯一去重，本人重复提交视为修改
-- 工作人员/管理员角色由 `.env` 的 `STAFF_WATCHA_IDS` / `ADMIN_WATCHA_IDS`（观猹 user_id 白名单）决定，登录时自动生效；管理员也可在后台手动调整
-
 ## AI 功能与额度
 
 | 功能 | 入口 | 模型 |
 |---|---|---|
-| AI 国际交流顾问「小际」 | /ai | deepseek-v4.1-flash（SSE 流式） |
+| AI 顾问「小际」 | /ai | deepseek-v4.1-flash（SSE 流式） |
 | AI 招新海报 | /ai | seedream-5.0-pro |
-| AI 数据助手（staff/admin） | /admin | 自然语言 → 只读 SQL 白名单校验 → 解读 |
-| AI 活动文案起草（admin） | /admin | 关键词 → 活动草稿 |
+| AI 数据助手（社团 staff+） | /c/{slug}/admin | 自然语言 → 只读 SQL（强制 club_id 隔离）→ 解读 |
+| AI 活动文案起草（社团 admin） | /c/{slug}/admin | 关键词 → 活动草稿 |
 
-未连接 Token 钱包的用户使用站点兜底 Key，受每日配额限制（聊天 20 次/海报 2 次，staff/admin ×10）；
-连接 TokenPay（TokenDance OAuth 授权）后使用用户自己的 Key，不计站点配额。
+未连接 Token 钱包的用户使用站点兜底 Key，受每日配额限制（聊天 20 次/海报 2 次，社团职员与管理员 ×10）；连接 TokenPay 后使用用户自己的 Key，不计站点配额。
 
 ## 环境变量
 

@@ -12,7 +12,7 @@ export default function QrCode({ text, size = 220 }: { text: string; size?: numb
       width: size,
       margin: 2,
       errorCorrectionLevel: 'M',
-      color: { dark: '#2b1e6b', light: '#ffffff' },
+      color: { dark: '#1d1d1d', light: '#ffffff' },
     }).catch(() => {})
   }, [text, size])
 
@@ -20,7 +20,7 @@ export default function QrCode({ text, size = 220 }: { text: string; size?: numb
     <canvas
       ref={ref}
       style={{ width: size, height: size }}
-      className="rounded-2xl bg-white"
+      className="rounded-2xl border-2 border-ink/10 bg-white"
       role="img"
       aria-label={`二维码：${text}`}
     />

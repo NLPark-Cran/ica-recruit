@@ -26,7 +26,7 @@ const EMPTY_FORM: ActivityFormState = {
 }
 
 const inputCls =
-  'min-h-11 w-full rounded-xl border-2 border-grape/15 bg-white px-3 text-sm outline-none focus:border-grape'
+  'min-h-11 w-full rounded-xl border-2 border-ink/40 bg-white px-3 text-sm outline-none focus:border-ink'
 
 /** datetime-local 值 → ISO；空则 null */
 function toIso(v: string): string | null {
@@ -40,7 +40,7 @@ function fromIso(v: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export default function ActivitiesTab() {
+export default function ActivitiesTab({ base }: { base: string }) {
   const { toast } = useToast()
   const [items, setItems] = useState<Activity[] | null>(null)
   const [editing, setEditing] = useState<ActivityFormState | null>(null)
@@ -51,7 +51,7 @@ export default function ActivitiesTab() {
 
   const load = async () => {
     try {
-      const data = await api.get<{ items: Activity[] }>('/api/activities/all')
+      const data = await api.get<{ items: Activity[] }>(`${base}/activities/all`)
       setItems(data.items)
     } catch (e) {
       toast(errorMessage(e, '活动加载失败'), 'error')
@@ -89,10 +89,10 @@ export default function ActivitiesTab() {
     const body = { ...editing, starts_at: toIso(editing.starts_at) }
     try {
       if (editingId) {
-        await api.put(`/api/activities/${editingId}`, body)
+        await api.put(`${base}/activities/${editingId}`, body)
         toast('活动已更新', 'success')
       } else {
-        await api.post('/api/activities', body)
+        await api.post(`${base}/activities`, body)
         toast('活动已创建', 'success')
       }
       setEditing(null)
@@ -106,7 +106,7 @@ export default function ActivitiesTab() {
 
   const togglePublish = async (a: Activity) => {
     try {
-      await api.put(`/api/activities/${a.id}`, {
+      await api.put(`${base}/activities/${a.id}`, {
         title: a.title,
         summary: a.summary,
         detail: a.detail,
@@ -126,7 +126,7 @@ export default function ActivitiesTab() {
   const remove = async (a: Activity) => {
     if (!window.confirm(`确定删除活动「${a.title}」吗？`)) return
     try {
-      await api.del(`/api/activities/${a.id}`)
+      await api.del(`${base}/activities/${a.id}`)
       toast('已删除', 'success')
       void load()
     } catch (e) {
@@ -138,7 +138,7 @@ export default function ActivitiesTab() {
     if (!keywords.trim() || drafting) return
     setDrafting(true)
     try {
-      const data = await api.post<{ draft: ActivityDraft }>('/api/ai/activity-draft', {
+      const data = await api.post<{ draft: ActivityDraft }>(`${base}/ai/activity-draft`, {
         keywords: keywords.trim(),
       })
       setEditing((f) =>
@@ -159,7 +159,7 @@ export default function ActivitiesTab() {
     }
   }
 
-  if (!items) return <p className="py-10 text-center text-sm text-grape/50">活动加载中…</p>
+  if (!items) return <p className="py-10 text-center text-sm text-ink/50">活动加载中…</p>
 
   return (
     <div className="space-y-6">
@@ -167,7 +167,7 @@ export default function ActivitiesTab() {
         <button
           type="button"
           onClick={() => startEdit()}
-          className="min-h-11 w-full rounded-2xl border-2 border-dashed border-grape/30 text-sm font-bold text-grape/60 transition-colors hover:border-grape hover:text-grape"
+          className="min-h-11 w-full rounded-2xl border-2 border-dashed border-ink/30 text-sm font-bold text-ink/60 transition-colors hover:border-ink hover:text-ink"
         >
           ＋ 新增活动
         </button>
@@ -176,9 +176,9 @@ export default function ActivitiesTab() {
       {editing && (
         <form
           onSubmit={save}
-          className="space-y-3 rounded-3xl border-2 border-grape/20 bg-white p-5 shadow-card"
+          className="space-y-3 rounded-3xl border-2 border-ink/20 bg-white p-5 shadow-sticker"
         >
-          <h3 className="text-base font-black text-grape">{editingId ? '编辑活动' : '新增活动'}</h3>
+          <h3 className="text-base font-black text-ink">{editingId ? '编辑活动' : '新增活动'}</h3>
 
           {/* AI 起草 */}
           <div className="flex gap-2 rounded-2xl bg-cream p-3">
@@ -193,14 +193,14 @@ export default function ActivitiesTab() {
               type="button"
               onClick={() => void draft()}
               disabled={drafting || !keywords.trim()}
-              className="min-h-11 shrink-0 rounded-full bg-gradient-to-r from-grape to-grape-light px-5 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
+              className="min-h-11 shrink-0 rounded-full bg-gradient-to-r from-ink to-sky-dark px-5 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
             >
               {drafting ? '起草中…' : '✨ AI 起草'}
             </button>
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-bold text-grape/60">标题 *</span>
+            <span className="mb-1 block text-xs font-bold text-ink/60">标题 *</span>
             <input
               className={inputCls}
               value={editing.title}
@@ -210,7 +210,7 @@ export default function ActivitiesTab() {
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-bold text-grape/60">一句话简介</span>
+            <span className="mb-1 block text-xs font-bold text-ink/60">一句话简介</span>
             <input
               className={inputCls}
               value={editing.summary}
@@ -219,7 +219,7 @@ export default function ActivitiesTab() {
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-bold text-grape/60">详情</span>
+            <span className="mb-1 block text-xs font-bold text-ink/60">详情</span>
             <textarea
               className={`${inputCls} min-h-24 resize-y py-2`}
               value={editing.detail}
@@ -228,7 +228,7 @@ export default function ActivitiesTab() {
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-bold text-grape/60">地点</span>
+              <span className="mb-1 block text-xs font-bold text-ink/60">地点</span>
               <input
                 className={inputCls}
                 value={editing.location}
@@ -237,7 +237,7 @@ export default function ActivitiesTab() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-bold text-grape/60">时间</span>
+              <span className="mb-1 block text-xs font-bold text-ink/60">时间</span>
               <input
                 className={inputCls}
                 type="datetime-local"
@@ -246,7 +246,7 @@ export default function ActivitiesTab() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-bold text-grape/60">封面图 URL</span>
+              <span className="mb-1 block text-xs font-bold text-ink/60">封面图 URL</span>
               <input
                 className={inputCls}
                 value={editing.cover_url}
@@ -256,7 +256,7 @@ export default function ActivitiesTab() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-bold text-grape/60">排序（小在前）</span>
+              <span className="mb-1 block text-xs font-bold text-ink/60">排序（小在前）</span>
               <input
                 className={inputCls}
                 type="number"
@@ -266,12 +266,12 @@ export default function ActivitiesTab() {
               />
             </label>
           </div>
-          <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-grape">
+          <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-ink">
             <input
               type="checkbox"
               checked={editing.published}
               onChange={(e) => setEditing({ ...editing, published: e.target.checked })}
-              className="h-5 w-5 accent-grape"
+              className="h-5 w-5 accent-ink"
             />
             立即上架（公开可见）
           </label>
@@ -279,14 +279,14 @@ export default function ActivitiesTab() {
             <button
               type="submit"
               disabled={saving}
-              className="min-h-11 rounded-full bg-tangerine px-6 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
+              className="min-h-11 rounded-full bg-blush px-6 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
             >
               {saving ? '保存中…' : '保存活动'}
             </button>
             <button
               type="button"
               onClick={() => setEditing(null)}
-              className="min-h-11 rounded-full border-2 border-grape/20 px-5 text-sm font-bold text-grape"
+              className="min-h-11 rounded-full border-2 border-ink/20 px-5 text-sm font-bold text-ink"
             >
               取消
             </button>
@@ -298,20 +298,20 @@ export default function ActivitiesTab() {
         {items.map((a) => (
           <li
             key={a.id}
-            className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-grape/10 bg-white p-4 shadow-card"
+            className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-ink bg-white p-4 shadow-sticker"
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate font-black text-grape">
+              <p className="truncate font-black text-ink">
                 {a.title}
                 <span
                   className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${
-                    a.published ? 'bg-mint/20 text-grape' : 'bg-grape/10 text-grape/50'
+                    a.published ? 'bg-leaf/20 text-ink' : 'bg-ink/10 text-ink/50'
                   }`}
                 >
                   {a.published ? '已上架' : '已下架'}
                 </span>
               </p>
-              <p className="mt-0.5 truncate text-xs text-grape/50">
+              <p className="mt-0.5 truncate text-xs text-ink/50">
                 {a.summary || '（无简介）'}
                 {a.starts_at && ` · ${new Date(a.starts_at).toLocaleString('zh-CN')}`}
               </p>
@@ -320,21 +320,21 @@ export default function ActivitiesTab() {
               <button
                 type="button"
                 onClick={() => startEdit(a)}
-                className="min-h-11 rounded-full bg-grape px-4 text-sm font-bold text-white"
+                className="min-h-11 rounded-full bg-ink px-4 text-sm font-bold text-white"
               >
                 编辑
               </button>
               <button
                 type="button"
                 onClick={() => void togglePublish(a)}
-                className="min-h-11 rounded-full border-2 border-grape/20 px-4 text-sm font-bold text-grape"
+                className="min-h-11 rounded-full border-2 border-ink/20 px-4 text-sm font-bold text-ink"
               >
                 {a.published ? '下架' : '上架'}
               </button>
               <button
                 type="button"
                 onClick={() => void remove(a)}
-                className="min-h-11 rounded-full border-2 border-tangerine/40 px-4 text-sm font-bold text-tangerine"
+                className="min-h-11 rounded-full border-2 border-blush/40 px-4 text-sm font-bold text-blush"
               >
                 删除
               </button>
@@ -342,7 +342,7 @@ export default function ActivitiesTab() {
           </li>
         ))}
         {items.length === 0 && (
-          <li className="rounded-2xl bg-white p-6 text-center text-sm text-grape/40 shadow-card">
+          <li className="rounded-2xl bg-white p-6 text-center text-sm text-ink/40 shadow-sticker">
             暂无活动，点击上方按钮新增
           </li>
         )}

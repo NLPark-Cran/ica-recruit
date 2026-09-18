@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import activities, admin, ai, applications, auth, byok, lottery, redeem
+from app.api import activities, admin, ai, applications, auth, byok, clubs, lottery, redeem
 from app.config import get_settings
 
 settings = get_settings()
@@ -39,5 +39,6 @@ async def health() -> dict:
     return {"ok": True}
 
 
-for r in (auth, byok, applications, lottery, redeem, activities, admin, ai):
+for r in (auth, byok, clubs, applications, lottery, redeem, activities, admin, ai):
     app.include_router(r.router, prefix="/api")
+app.include_router(ai.club_router, prefix="/api")

@@ -1,24 +1,23 @@
 @import 'tailwindcss';
 
 @theme {
-  /* 品牌色板：奶油白底 + 深紫/靛蓝主色 + 荧光橙点缀 */
-  --color-cream: #fff9f0;
-  --color-cream-dark: #f7ecdc;
-  --color-grape: #3d2c8d;
-  --color-grape-dark: #2b1e6b;
-  --color-grape-light: #6c5ce7;
-  --color-tangerine: #ff6b35;
-  --color-tangerine-light: #ffa07a;
-  --color-lemon: #ffd166;
-  --color-mint: #06d6a0;
-  --color-sky-pop: #4cc9f0;
+  /* 观猹开学季可爱卡通风：奶油白底 + 天蓝主色 + 草绿辅助 + 柠檬黄点缀 + 深棕黑文字 */
+  --color-cream: #fffdf5;
+  --color-sky: #88d1ff;
+  --color-sky-dark: #4fb3f6;
+  --color-leaf: #4f8e41;
+  --color-leaf-light: #7cbc6a;
+  --color-lemon: #fdf253;
+  --color-blush: #ffb3c7;
+  --color-ink: #1d1d1d;
 
   --font-sans:
     system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
     'Noto Sans CJK SC', sans-serif;
 
-  --shadow-sticker: 0 4px 0 0 rgb(61 44 141 / 0.9);
-  --shadow-card: 0 10px 30px -12px rgb(61 44 141 / 0.25);
+  /* 贴纸硬阴影 */
+  --shadow-sticker: 4px 4px 0 0 #1d1d1d;
+  --shadow-sticker-sm: 2px 2px 0 0 #1d1d1d;
 
   --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 
@@ -34,13 +33,42 @@
   }
 }
 
+/* 贴纸风组件类（@utility 定义，可被 @apply 组合） */
+@utility card {
+  @apply rounded-3xl border-[3px] border-ink bg-white shadow-sticker;
+}
+
+@utility btn {
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-1 rounded-full border-[3px] border-ink px-5 text-sm font-black whitespace-nowrap shadow-sticker transition-all active:translate-x-0.5 active:translate-y-0.5 active:shadow-sticker-sm disabled:pointer-events-none disabled:opacity-50;
+}
+@utility btn-lemon {
+  @apply btn bg-lemon text-ink;
+}
+@utility btn-sky {
+  @apply btn bg-sky text-ink;
+}
+@utility btn-leaf {
+  @apply btn bg-leaf text-white;
+}
+@utility btn-ghost {
+  @apply btn bg-white text-ink;
+}
+
+@utility input {
+  @apply min-h-12 w-full rounded-2xl border-[3px] border-ink/20 bg-white px-4 outline-none transition-colors placeholder:text-ink/30 focus:border-ink;
+}
+
+@utility sticker {
+  @apply inline-flex items-center gap-1 rounded-full border-2 border-ink px-3 py-1 text-xs font-black shadow-sticker-sm;
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background-color: var(--color-cream);
-  color: var(--color-grape-dark);
+  color: var(--color-ink);
   font-family: var(--font-sans);
 }
 
@@ -56,8 +84,8 @@ body {
 .img-fallback {
   background: linear-gradient(
     135deg,
-    var(--color-grape) 0%,
-    var(--color-grape-light) 55%,
-    var(--color-tangerine) 130%
+    var(--color-sky) 0%,
+    var(--color-sky-dark) 55%,
+    var(--color-leaf-light) 130%
   );
 }

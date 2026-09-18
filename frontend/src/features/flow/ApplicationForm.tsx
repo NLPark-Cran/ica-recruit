@@ -1,19 +1,20 @@
 import { useState, type FormEvent } from 'react'
 import { motion } from 'motion/react'
 import { api, ApiError, errorMessage } from '@/lib/api'
-import { DEPARTMENTS, type ApplicationIn } from '@/lib/types'
+import type { ApplicationIn } from '@/lib/types'
 
 interface Props {
+  /** 社团级 API 前缀，如 /api/clubs/ica */
+  base: string
+  /** 意向部门选项（来自 club.departments） */
+  departments: string[]
   cardUrl: string
   onSuccess: () => void
 }
 
 const GRADES = ['2026 级', '2025 级', '2024 级', '2023 级', '其他']
 
-const inputClass =
-  'min-h-12 w-full rounded-2xl border-2 border-grape/15 bg-white px-4 text-base outline-none transition-colors focus:border-grape placeholder:text-grape/30'
-
-export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
+export default function ApplicationForm({ base, departments, cardUrl, onSuccess }: Props) {
   const [form, setForm] = useState<ApplicationIn>({
     name: '',
     student_id: '',
@@ -44,7 +45,8 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
     if (!form.name.trim()) return '请填写姓名'
     if (!/^\d{4,32}$/.test(form.student_id.trim())) return '学号应为 4-32 位纯数字'
     if (form.phone.trim().length < 5) return '请填写正确的联系电话'
-    if (!form.wechat.trim()) return '请填写微信号，方便我们联系你'
+    if (!form.wechat.trim()) return '请填写微信号，方便社团联系你'
+    if (departments.length === 0) return '该社团暂未设置部门，暂无法报名'
     if (form.departments.length === 0) return '请至少选择一个意向部门'
     return ''
   }
@@ -60,12 +62,12 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
     setError('')
     setSubmitting(true)
     try {
-      await api.post('/api/applications', { ...form, student_id: form.student_id.trim() })
+      await api.post(`${base}/applications`, { ...form, student_id: form.student_id.trim() })
       setDone(true)
       onSuccess()
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        setError('该学号已提交过报名，如有疑问请联系现场工作人员')
+        setError('该学号已提交过报名，如有疑问请联系社团工作人员')
       } else {
         setError(errorMessage(err, '提交失败，请检查网络后重试'))
       }
@@ -79,40 +81,38 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center gap-4 rounded-3xl border-2 border-mint/40 bg-white p-8 text-center shadow-card"
+        className="card flex flex-col items-center gap-4 p-8 text-center"
       >
         <span className="text-5xl">🎊</span>
-        <h3 className="text-2xl font-black text-grape">报名成功！</h3>
-        <p className="text-sm leading-relaxed text-grape/60">
-          我们已收到你的报名表，面试通知将通过微信发送。别忘了领取你的专属纪念：
+        <h3 className="text-2xl font-black text-ink">报名成功！</h3>
+        <p className="text-sm leading-relaxed font-bold text-ink/50">
+          社团已收到你的报名表，后续通知将通过微信发送。
+          {cardUrl && ' 别忘了领取你的专属纪念：'}
         </p>
-        <div className="w-full rounded-3xl bg-gradient-to-br from-grape via-grape-light to-tangerine p-6 text-white shadow-sticker">
-          <p className="text-xs font-bold tracking-widest text-white/70">
-            LIMITED NFT-LIKE TOKEN CARD
-          </p>
-          <p className="mt-2 text-xl font-black">观猹 × 杭电 ICA 联名 Token 虚拟卡</p>
-          <button
-            type="button"
-            onClick={() => window.open(cardUrl, '_blank', 'noopener')}
-            className="mt-4 min-h-11 w-full rounded-full bg-white text-sm font-black text-grape transition-transform hover:scale-105 active:scale-95"
-          >
-            🪙 立即领取（新窗口打开）
-          </button>
-        </div>
+        {cardUrl && (
+          <div className="card w-full bg-gradient-to-br from-sky via-sky-dark to-leaf-light p-6 text-white">
+            <p className="text-xs font-black tracking-widest text-white/80">LIMITED TOKEN CARD</p>
+            <p className="mt-2 text-xl font-black drop-shadow">观猹 × 社团联名 Token 虚拟卡</p>
+            <button
+              type="button"
+              onClick={() => window.open(cardUrl, '_blank', 'noopener')}
+              className="btn-lemon mt-4 w-full"
+            >
+              🪙 立即领取（新窗口打开）
+            </button>
+          </div>
+        )}
       </motion.div>
     )
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="space-y-4 rounded-3xl border-2 border-grape/10 bg-white p-6 shadow-card"
-    >
+    <form onSubmit={submit} className="card space-y-4 p-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1.5 block text-sm font-bold text-grape">姓名 *</span>
+          <span className="mb-1.5 block text-sm font-black text-ink">姓名 *</span>
           <input
-            className={inputClass}
+            className="input"
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             placeholder="真实姓名"
@@ -121,9 +121,9 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
           />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-bold text-grape">学号 *</span>
+          <span className="mb-1.5 block text-sm font-black text-ink">学号 *</span>
           <input
-            className={inputClass}
+            className="input"
             value={form.student_id}
             onChange={(e) => set('student_id', e.target.value.replace(/\D/g, ''))}
             placeholder="纯数字学号"
@@ -133,9 +133,9 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
           />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-bold text-grape">学院</span>
+          <span className="mb-1.5 block text-sm font-black text-ink">学院</span>
           <input
-            className={inputClass}
+            className="input"
             value={form.college}
             onChange={(e) => set('college', e.target.value)}
             placeholder="如：计算机学院"
@@ -143,9 +143,9 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
           />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-bold text-grape">年级</span>
+          <span className="mb-1.5 block text-sm font-black text-ink">年级</span>
           <select
-            className={inputClass}
+            className="input"
             value={form.grade}
             onChange={(e) => set('grade', e.target.value)}
           >
@@ -158,9 +158,9 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
           </select>
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-bold text-grape">电话 *</span>
+          <span className="mb-1.5 block text-sm font-black text-ink">电话 *</span>
           <input
-            className={inputClass}
+            className="input"
             value={form.phone}
             onChange={(e) => set('phone', e.target.value)}
             placeholder="手机号码"
@@ -170,40 +170,42 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
           />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-bold text-grape">微信号 *</span>
+          <span className="mb-1.5 block text-sm font-black text-ink">微信号 *</span>
           <input
-            className={inputClass}
+            className="input"
             value={form.wechat}
             onChange={(e) => set('wechat', e.target.value)}
-            placeholder="用于接收面试通知"
+            placeholder="用于接收后续通知"
             maxLength={64}
           />
         </label>
       </div>
 
       <div>
-        <span className="mb-1.5 block text-sm font-bold text-grape">意向部门 *（可多选）</span>
-        <div className="flex flex-wrap gap-2">
-          {DEPARTMENTS.map((d) => {
-            const active = form.departments.includes(d)
-            return (
-              <button
-                key={d}
-                type="button"
-                onClick={() => toggleDepartment(d)}
-                aria-pressed={active}
-                className={`min-h-11 rounded-full border-2 px-5 text-sm font-bold transition-all active:scale-95 ${
-                  active
-                    ? 'border-grape bg-grape text-white shadow-sticker'
-                    : 'border-grape/20 bg-white text-grape hover:border-grape/50'
-                }`}
-              >
-                {active ? '✓ ' : ''}
-                {d}
-              </button>
-            )
-          })}
-        </div>
+        <span className="mb-1.5 block text-sm font-black text-ink">意向部门 *（可多选）</span>
+        {departments.length === 0 ? (
+          <p className="text-sm font-bold text-ink/40">该社团暂未设置部门</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {departments.map((d) => {
+              const active = form.departments.includes(d)
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleDepartment(d)}
+                  aria-pressed={active}
+                  className={`min-h-11 rounded-full border-[3px] border-ink px-5 text-sm font-black transition-all active:translate-x-0.5 active:translate-y-0.5 ${
+                    active ? 'bg-lemon shadow-sticker-sm' : 'bg-white shadow-sticker hover:bg-cream'
+                  }`}
+                >
+                  {active ? '✓ ' : ''}
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <label className="flex min-h-11 cursor-pointer items-center gap-3">
@@ -212,44 +214,40 @@ export default function ApplicationForm({ cardUrl, onSuccess }: Props) {
           role="switch"
           aria-checked={form.allow_adjust}
           onClick={() => set('allow_adjust', !form.allow_adjust)}
-          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${
-            form.allow_adjust ? 'bg-mint' : 'bg-grape/20'
+          className={`relative h-8 w-14 shrink-0 rounded-full border-[3px] border-ink transition-colors ${
+            form.allow_adjust ? 'bg-leaf' : 'bg-white'
           }`}
         >
           <span
-            className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${
-              form.allow_adjust ? 'left-7' : 'left-1'
+            className={`absolute top-0.5 h-5 w-5 rounded-full border-2 border-ink bg-white transition-all ${
+              form.allow_adjust ? 'left-7' : 'left-0.5'
             }`}
           />
         </button>
-        <span className="text-sm font-bold text-grape">是否服从部门调剂</span>
+        <span className="text-sm font-black text-ink">是否服从部门调剂</span>
       </label>
 
       <label className="block">
-        <span className="mb-1.5 block text-sm font-bold text-grape">自我介绍</span>
+        <span className="mb-1.5 block text-sm font-black text-ink">自我介绍</span>
         <textarea
-          className={`${inputClass} min-h-28 resize-y py-3`}
+          className="input min-h-28 resize-y py-3"
           value={form.intro}
           onChange={(e) => set('intro', e.target.value)}
-          placeholder="聊聊你的兴趣、经历，或为什么想加入 ICA…"
+          placeholder="聊聊你的兴趣、经历，或为什么想加入我们…"
           maxLength={1000}
         />
       </label>
 
       {error && (
         <div
-          className="rounded-2xl bg-tangerine/10 px-4 py-3 text-sm font-bold text-tangerine"
+          className="rounded-2xl border-[3px] border-ink bg-blush px-4 py-3 text-sm font-black text-ink"
           role="alert"
         >
           ⚠️ {error}
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="min-h-12 w-full rounded-full bg-tangerine text-base font-black text-white shadow-sticker transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-      >
+      <button type="submit" disabled={submitting} className="btn-lemon min-h-12 w-full text-base">
         {submitting ? '提交中…' : '提交报名表'}
       </button>
     </form>

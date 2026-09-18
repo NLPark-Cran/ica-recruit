@@ -12,7 +12,11 @@ interface Props {
   onQuotaExceeded: () => void
 }
 
-const SUGGESTIONS = ['杭电有哪些海外交换项目？', '雅思备考两个月够吗？', 'ICA 的英语角怎么参加？']
+const SUGGESTIONS = [
+  '怎么写一份亮眼的社团报名表？',
+  '新生面试一般会问什么？',
+  '百团大战怎么逛最高效？',
+]
 
 /** AI 国际交流顾问「小际」：SSE 流式聊天 */
 export default function ChatPanel({ onQuotaExceeded }: Props) {
@@ -20,7 +24,7 @@ export default function ChatPanel({ onQuotaExceeded }: Props) {
     {
       role: 'assistant',
       content:
-        '你好呀！我是 ICA 的 AI 顾问小际 🌏 海外交换、语言考试、签证、协会活动……有什么想了解的都可以问我～',
+        '你好呀！我是 AI 顾问小际 🌏 社团选择、报名面试、海外交流……有什么想了解的都可以问我～',
     },
   ])
   const [input, setInput] = useState('')
@@ -131,7 +135,7 @@ export default function ChatPanel({ onQuotaExceeded }: Props) {
     <div className="flex flex-col gap-3">
       <div
         ref={listRef}
-        className="flex max-h-[55dvh] min-h-64 flex-col gap-3 overflow-y-auto rounded-3xl border-2 border-grape/10 bg-white p-4 shadow-card"
+        className="flex max-h-[55dvh] min-h-64 flex-col gap-3 overflow-y-auto rounded-3xl border-2 border-ink bg-white p-4 shadow-sticker"
       >
         {messages.map((m, i) => (
           <motion.div
@@ -139,9 +143,7 @@ export default function ChatPanel({ onQuotaExceeded }: Props) {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap ${
-              m.role === 'user'
-                ? 'self-end bg-grape text-white'
-                : 'self-start bg-cream text-grape-dark'
+              m.role === 'user' ? 'self-end bg-ink text-white' : 'self-start bg-cream text-ink'
             }`}
           >
             {m.content ||
@@ -161,7 +163,7 @@ export default function ChatPanel({ onQuotaExceeded }: Props) {
               key={s}
               type="button"
               onClick={() => void send(undefined, s)}
-              className="min-h-11 rounded-full border-2 border-grape/15 bg-white px-4 text-xs font-bold text-grape transition-colors hover:border-grape/40"
+              className="min-h-11 rounded-full border-2 border-ink/40 bg-white px-4 text-xs font-bold text-ink transition-colors hover:border-ink/40"
             >
               {s}
             </button>
@@ -176,12 +178,12 @@ export default function ChatPanel({ onQuotaExceeded }: Props) {
           placeholder="向小际提问…"
           maxLength={4000}
           disabled={streaming}
-          className="min-h-12 flex-1 rounded-full border-2 border-grape/15 bg-white px-5 text-sm outline-none focus:border-grape disabled:opacity-60"
+          className="min-h-12 flex-1 rounded-full border-2 border-ink/40 bg-white px-5 text-sm outline-none focus:border-ink disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={streaming || !input.trim()}
-          className="min-h-12 shrink-0 rounded-full bg-tangerine px-6 text-sm font-black text-white shadow-sticker transition-transform active:scale-95 disabled:opacity-50"
+          className="min-h-12 shrink-0 rounded-full bg-blush px-6 text-sm font-black text-white shadow-sticker transition-transform active:scale-95 disabled:opacity-50"
         >
           {streaming ? '…' : '发送'}
         </button>

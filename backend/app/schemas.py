@@ -1,5 +1,6 @@
 """Pydantic v2 出入参 schema。"""
 
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
@@ -11,13 +12,45 @@ class UserOut(BaseModel):
     id: str
     nickname: str
     avatar_url: str
-    role: str
+    is_platform_admin: bool
     has_tokendance_key: bool = False
+    club_roles: dict[str, str] = {}  # {club_slug: role}
+
+
+# ---------- 社团 ----------
+
+
+class ClubIn(BaseModel):
+    slug: str = Field(min_length=2, max_length=32)
+    name: str = Field(min_length=1, max_length=64)
+    intro: str = Field(default="")
+    logo_url: str = Field(default="", max_length=512)
+    departments: list[str] = Field(default_factory=list, max_length=10)
+    card_url: str = Field(default="", max_length=512)
+    contact: str = Field(default="", max_length=256)
+
+    @field_validator("slug")
+    @classmethod
+    def _slug(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.fullmatch(r"[a-z0-9-]+", v):
+            raise ValueError("标识仅限小写字母、数字与连字符")
+        return v
+
+    @field_validator("departments")
+    @classmethod
+    def _deps(cls, v: list[str]) -> list[str]:
+        return [d.strip() for d in v if d.strip()][:10]
+
+
+class ClubOut(ClubIn):
+    id: str
+    active: bool
+    created_at: datetime
+    my_role: str | None = None  # 当前用户在该社团的角色（未登录/非成员为 None）
 
 
 # ---------- 报名 ----------
-
-DEPARTMENTS = ["组织部", "宣传部", "外联部", "学术部", "办公室"]
 
 
 class ApplicationIn(BaseModel):
@@ -27,7 +60,7 @@ class ApplicationIn(BaseModel):
     grade: str = Field(default="", max_length=16)
     phone: str = Field(min_length=5, max_length=32)
     wechat: str = Field(min_length=1, max_length=64)
-    departments: list[str] = Field(min_length=1, max_length=5)
+    departments: list[str] = Field(min_length=1, max_length=10)
     allow_adjust: bool = True
     intro: str = Field(default="", max_length=1000)
 
@@ -37,14 +70,6 @@ class ApplicationIn(BaseModel):
         v = v.strip()
         if not v.isdigit():
             raise ValueError("学号应为纯数字")
-        return v
-
-    @field_validator("departments")
-    @classmethod
-    def _deps(cls, v: list[str]) -> list[str]:
-        bad = [d for d in v if d not in DEPARTMENTS]
-        if bad:
-            raise ValueError(f"未知部门: {bad}")
         return v
 
 
@@ -106,7 +131,7 @@ class RoundStatus(BaseModel):
     round: int
     enabled: bool
     title: str
-    eligible: bool  # 当前用户是否可抽
+    eligible: bool
     drawn: bool
     result: DrawResult | None = None
 
@@ -114,7 +139,7 @@ class RoundStatus(BaseModel):
 class LotteryStatus(BaseModel):
     applied: bool
     rounds: list[RoundStatus]
-    card_url: str = "https://school.watcha.cn/card"
+    card_url: str = ""
 
 
 # ---------- 核销 ----------
@@ -150,6 +175,22 @@ class ActivityIn(BaseModel):
 
 class ActivityOut(ActivityIn):
     id: str
+    created_at: datetime
+
+
+# ---------- 成员 ----------
+
+
+class MemberIn(BaseModel):
+    watcha_user_id: int
+    role: str = Field(pattern="^(staff|admin)$")
+
+
+class MemberOut(BaseModel):
+    watcha_user_id: int
+    nickname: str
+    avatar_url: str
+    role: str
     created_at: datetime
 
 

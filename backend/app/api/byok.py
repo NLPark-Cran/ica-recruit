@@ -39,14 +39,14 @@ async def connect(user: CurrentUser):
 @router.get("/callback")
 async def callback(request: Request, db: DB, code: str = ""):
     if not code:
-        return RedirectResponse("/flow?byok=error")
+        return RedirectResponse("/ai?byok=error")
     token = request.cookies.get(settings.session_cookie)
     user_id = decode_session_token(token) if token else None
     if not user_id:
-        return RedirectResponse("/login?next=/flow")
+        return RedirectResponse("/login?next=/ai")
     verifier = await redis.getdel(f"byok:{user_id}")
     if not verifier:
-        return RedirectResponse("/flow?byok=expired")
+        return RedirectResponse("/ai?byok=expired")
 
     async with httpx.AsyncClient(timeout=20) as client:
         resp = await client.post(
@@ -54,7 +54,7 @@ async def callback(request: Request, db: DB, code: str = ""):
             json={"code": code, "code_verifier": verifier, "code_challenge_method": "S256"},
         )
     if resp.status_code != 200 or not resp.json().get("key"):
-        return RedirectResponse("/flow?byok=error")
+        return RedirectResponse("/ai?byok=error")
     key = resp.json()["key"]
 
     acct = (
@@ -67,7 +67,7 @@ async def callback(request: Request, db: DB, code: str = ""):
     else:
         db.add(OAuthAccount(user_id=user_id, provider="tokendance", payload_enc=encrypt_text(key)))
     await db.commit()
-    return RedirectResponse("/flow?byok=ok")
+    return RedirectResponse("/ai?byok=ok")
 
 
 @router.delete("")

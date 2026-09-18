@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
+import { Forbidden } from '@/components/Protected'
 import { api, errorMessage } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/lib/toast'
 import type { RedeemHistoryItem, RedeemOut } from '@/lib/types'
 
@@ -16,8 +19,12 @@ function getBarcodeDetector(): BarcodeDetectorCtor | null {
   return w.BarcodeDetector ?? null
 }
 
+/** 社团核销台（本社团 staff/admin 可用） */
 export default function Redeem() {
+  const { slug = '' } = useParams()
+  const { user } = useAuth()
   const { toast } = useToast()
+  const base = `/api/clubs/${slug}`
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<RedeemOut | null>(null)
@@ -25,11 +32,12 @@ export default function Redeem() {
   const [scanning, setScanning] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const role = user?.club_roles[slug]
   const DetectorCtor = getBarcodeDetector()
 
   const loadHistory = async () => {
     try {
-      const data = await api.get<{ items: RedeemHistoryItem[] }>('/api/redeem/history')
+      const data = await api.get<{ items: RedeemHistoryItem[] }>(`${base}/redeem/history`)
       setHistory(data.items)
     } catch {
       /* 列表失败静默 */
@@ -37,15 +45,16 @@ export default function Redeem() {
   }
 
   useEffect(() => {
-    void loadHistory()
-  }, [])
+    if (role === 'staff' || role === 'admin') void loadHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, base])
 
   const submit = async (raw?: string) => {
     const c = (raw ?? code).trim().toUpperCase()
     if (!c || submitting) return
     setSubmitting(true)
     try {
-      const res = await api.post<RedeemOut>('/api/redeem', { code: c })
+      const res = await api.post<RedeemOut>(`${base}/redeem`, { code: c })
       setResult(res)
       setCode('')
       if (res.ok) void loadHistory()
@@ -57,14 +66,18 @@ export default function Redeem() {
     }
   }
 
+  if (role !== 'staff' && role !== 'admin') {
+    return <Forbidden hint="核销台仅对本社团的工作人员/管理员开放。" />
+  }
+
   return (
     <div className="mx-auto max-w-xl space-y-6 py-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-black text-grape">奖品核销台 🎫</h1>
-        <p className="text-sm text-grape/60">输入或扫描中奖者的核销码，确认后发放奖品</p>
+        <h1 className="text-3xl font-black text-ink">奖品核销台 🎫</h1>
+        <p className="text-sm font-bold text-ink/50">输入或扫描中奖者的核销码，确认后发放奖品</p>
       </div>
 
-      <div className="space-y-4 rounded-3xl border-2 border-grape/10 bg-white p-6 shadow-card">
+      <div className="card space-y-4 p-6">
         <input
           ref={inputRef}
           value={code}
@@ -74,14 +87,14 @@ export default function Redeem() {
           autoCapitalize="characters"
           autoCorrect="off"
           maxLength={24}
-          className="min-h-14 w-full rounded-2xl border-2 border-grape/15 bg-cream px-4 text-center font-mono text-2xl font-black tracking-widest text-grape uppercase outline-none focus:border-grape placeholder:text-base placeholder:font-sans placeholder:tracking-normal placeholder:text-grape/30"
+          className="input min-h-14 text-center font-mono text-2xl font-black tracking-widest uppercase placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:text-ink/30"
         />
         <div className="flex gap-3">
           <button
             type="button"
             onClick={() => void submit()}
             disabled={submitting || code.trim().length < 4}
-            className="min-h-14 flex-1 rounded-full bg-tangerine text-lg font-black text-white shadow-sticker transition-transform active:scale-95 disabled:opacity-50"
+            className="btn-lemon min-h-14 flex-1 text-lg"
           >
             {submitting ? '核销中…' : '确认核销'}
           </button>
@@ -89,7 +102,7 @@ export default function Redeem() {
             <button
               type="button"
               onClick={() => setScanning(true)}
-              className="min-h-14 rounded-full bg-grape px-6 text-base font-bold text-white shadow-sticker transition-transform active:scale-95"
+              className="btn-sky min-h-14 px-6 text-base"
             >
               📷 扫码
             </button>
@@ -105,31 +118,25 @@ export default function Redeem() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
             role="alert"
-            className={`rounded-3xl p-6 text-center shadow-card ${
-              result.ok ? 'bg-mint/15 text-grape-dark' : 'bg-tangerine/15 text-tangerine'
-            }`}
+            className={`card p-6 text-center ${result.ok ? 'bg-leaf/20' : 'bg-blush/40'}`}
           >
             <div className="text-4xl">{result.ok ? '✅' : '❌'}</div>
-            <p className="mt-2 text-xl font-black">{result.ok ? '核销成功' : '核销失败'}</p>
+            <p className="mt-2 text-xl font-black text-ink">
+              {result.ok ? '核销成功' : '核销失败'}
+            </p>
             {result.ok && (
-              <p className="mt-1 text-lg font-black text-grape">
+              <p className="mt-1 text-lg font-black text-ink">
                 {result.prize_name}
-                <span className="ml-2 rounded-full bg-grape px-3 py-0.5 text-xs font-bold text-white">
-                  第 {result.round} 轮
-                </span>
+                <span className="sticker ml-2 bg-sky text-[10px]">第 {result.round} 轮</span>
               </p>
             )}
-            <p className="mt-2 text-sm font-bold">{result.message}</p>
+            <p className="mt-2 text-sm font-black text-ink/70">{result.message}</p>
             {!result.ok && result.redeemed_at && (
-              <p className="mt-1 text-xs opacity-70">
+              <p className="mt-1 text-xs font-bold text-ink/50">
                 首次核销时间：{new Date(result.redeemed_at).toLocaleString('zh-CN')}
               </p>
             )}
-            <button
-              type="button"
-              onClick={() => setResult(null)}
-              className="mt-4 min-h-11 rounded-full border-2 border-current px-6 text-sm font-bold"
-            >
+            <button type="button" onClick={() => setResult(null)} className="btn-ghost mt-4">
               继续核销下一个
             </button>
           </motion.div>
@@ -148,29 +155,24 @@ export default function Redeem() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-black text-grape">最近核销记录</h2>
+        <h2 className="text-lg font-black text-ink">最近核销记录</h2>
         {history.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-center text-sm text-grape/40 shadow-card">
-            暂无核销记录
-          </p>
+          <p className="card p-6 text-center text-sm font-bold text-ink/40">暂无核销记录</p>
         ) : (
           <ul className="space-y-2">
             {history.map((h, i) => (
-              <li
-                key={`${h.code}-${i}`}
-                className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-card"
-              >
+              <li key={`${h.code}-${i}`} className="card flex items-center gap-3 p-4">
                 <span className="text-xl">🎁</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-black text-grape">
+                  <p className="truncate text-sm font-black text-ink">
                     {h.prize_name}
-                    <span className="ml-2 text-xs font-bold text-grape/40">第 {h.round} 轮</span>
+                    <span className="ml-2 text-xs font-bold text-ink/40">第 {h.round} 轮</span>
                   </p>
-                  <p className="font-mono text-xs text-grape/50">
+                  <p className="font-mono text-xs font-bold text-ink/50">
                     {h.code} · {h.winner}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs text-grape/40">
+                <span className="shrink-0 text-xs font-bold text-ink/40">
                   {h.redeemed_at ? new Date(h.redeemed_at).toLocaleString('zh-CN') : ''}
                 </span>
               </li>
@@ -240,25 +242,21 @@ function Scanner({
   }, [Detector, onDetect])
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-grape-dark/90 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex flex-col bg-ink/80 p-4" onClick={onClose}>
       <div
-        className="m-auto w-full max-w-sm space-y-3 rounded-3xl bg-white p-4"
+        className="card m-auto w-full max-w-sm space-y-3 p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="aspect-square w-full overflow-hidden rounded-2xl bg-black">
+        <div className="aspect-square w-full overflow-hidden rounded-2xl border-[3px] border-ink bg-black">
           {error ? (
-            <p className="flex h-full items-center justify-center p-6 text-center text-sm text-white">
+            <p className="flex h-full items-center justify-center p-6 text-center text-sm font-bold text-white">
               {error}
             </p>
           ) : (
             <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="min-h-11 w-full rounded-full bg-grape text-sm font-bold text-white"
-        >
+        <button type="button" onClick={onClose} className="btn-ghost w-full">
           取消扫码
         </button>
       </div>

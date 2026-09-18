@@ -1,11 +1,47 @@
 /** 与后端 Pydantic schema 对齐的类型定义 */
 
+export type ClubRole = 'staff' | 'admin'
+
 export interface User {
   id: string
   nickname: string
   avatar_url: string
-  role: 'user' | 'staff' | 'admin'
+  is_platform_admin: boolean
   has_tokendance_key: boolean
+  /** { [club_slug]: 'staff' | 'admin' } */
+  club_roles: Record<string, ClubRole>
+}
+
+export interface Club {
+  id: string
+  slug: string
+  name: string
+  intro: string
+  logo_url: string
+  departments: string[]
+  card_url: string
+  contact: string
+  active: boolean
+  created_at: string
+  my_role: ClubRole | null
+}
+
+export interface ClubIn {
+  slug: string
+  name: string
+  intro: string
+  logo_url: string
+  departments: string[]
+  card_url: string
+  contact: string
+}
+
+export interface Member {
+  watcha_user_id: number
+  nickname: string
+  avatar_url: string
+  role: ClubRole
+  created_at: string
 }
 
 export interface DrawResult {
@@ -34,8 +70,6 @@ export interface LotteryStatus {
   rounds: RoundStatus[]
   card_url: string
 }
-
-export const DEPARTMENTS = ['组织部', '宣传部', '外联部', '学术部', '办公室'] as const
 
 export interface ApplicationIn {
   name: string
@@ -117,7 +151,7 @@ export interface PoolConfig {
 }
 
 export interface AdminStats {
-  users: number
+  visitors: number
   applications: number
   rounds: {
     round: number

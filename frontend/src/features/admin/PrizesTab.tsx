@@ -4,7 +4,7 @@ import { useToast } from '@/lib/toast'
 import type { PoolConfig, Prize, PrizeIn } from '@/lib/types'
 
 const inputCls =
-  'min-h-11 w-full rounded-xl border-2 border-grape/15 bg-white px-3 text-sm outline-none focus:border-grape'
+  'min-h-11 w-full rounded-xl border-2 border-ink/40 bg-white px-3 text-sm outline-none focus:border-ink'
 
 const EMPTY_PRIZE = (round: number): PrizeIn => ({
   round,
@@ -19,7 +19,7 @@ const EMPTY_PRIZE = (round: number): PrizeIn => ({
   sort: 0,
 })
 
-export default function PrizesTab() {
+export default function PrizesTab({ base }: { base: string }) {
   const { toast } = useToast()
   const [prizes, setPrizes] = useState<Prize[]>([])
   const [configs, setConfigs] = useState<PoolConfig[]>([])
@@ -27,7 +27,7 @@ export default function PrizesTab() {
 
   const load = async () => {
     try {
-      const data = await api.get<{ prizes: Prize[]; configs: PoolConfig[] }>('/api/admin/prizes')
+      const data = await api.get<{ prizes: Prize[]; configs: PoolConfig[] }>(`${base}/admin/prizes`)
       setPrizes(data.prizes)
       setConfigs(data.configs)
     } catch (e) {
@@ -42,14 +42,15 @@ export default function PrizesTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (loading) return <p className="py-10 text-center text-sm text-grape/50">奖池加载中…</p>
+  if (loading) return <p className="py-10 text-center text-sm text-ink/50">奖池加载中…</p>
 
   return (
     <div className="space-y-10">
       {[1, 2].map((round) => (
         <section key={round} className="space-y-4">
-          <h3 className="text-lg font-black text-grape">第 {round} 轮奖池</h3>
+          <h3 className="text-lg font-black text-ink">第 {round} 轮奖池</h3>
           <PoolConfigCard
+            base={base}
             round={round}
             config={configs.find((c) => c.round === round)}
             onSaved={() => void load()}
@@ -58,10 +59,10 @@ export default function PrizesTab() {
             {prizes
               .filter((p) => p.round === round)
               .map((p) => (
-                <PrizeRow key={p.id} prize={p} onChanged={() => void load()} />
+                <PrizeRow key={p.id} base={base} prize={p} onChanged={() => void load()} />
               ))}
           </div>
-          <NewPrizeForm round={round} onCreated={() => void load()} />
+          <NewPrizeForm base={base} round={round} onCreated={() => void load()} />
         </section>
       ))}
     </div>
@@ -69,10 +70,12 @@ export default function PrizesTab() {
 }
 
 function PoolConfigCard({
+  base,
   round,
   config,
   onSaved,
 }: {
+  base: string
   round: number
   config?: PoolConfig
   onSaved: () => void
@@ -94,7 +97,7 @@ function PoolConfigCard({
     if (saving) return
     setSaving(true)
     try {
-      await api.put(`/api/admin/pool/${round}`, form)
+      await api.put(`${base}/admin/pool/${round}`, form)
       toast(`第 ${round} 轮配置已保存`, 'success')
       onSaved()
     } catch (e) {
@@ -105,10 +108,10 @@ function PoolConfigCard({
   }
 
   return (
-    <div className="rounded-2xl border-2 border-grape/10 bg-cream p-4">
+    <div className="rounded-2xl border-2 border-ink bg-cream p-4">
       <div className="flex flex-wrap items-end gap-3">
         <label className="w-32">
-          <span className="mb-1 block text-xs font-bold text-grape/60">轮次标题</span>
+          <span className="mb-1 block text-xs font-bold text-ink/60">轮次标题</span>
           <input
             className={inputCls}
             value={form.title}
@@ -118,7 +121,7 @@ function PoolConfigCard({
           />
         </label>
         <label className="w-28">
-          <span className="mb-1 block text-xs font-bold text-grape/60">未中奖权重</span>
+          <span className="mb-1 block text-xs font-bold text-ink/60">未中奖权重</span>
           <input
             className={inputCls}
             type="number"
@@ -128,12 +131,12 @@ function PoolConfigCard({
             onChange={(e) => setForm({ ...form, lose_weight: Number(e.target.value) || 0 })}
           />
         </label>
-        <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-grape">
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-ink">
           <input
             type="checkbox"
             checked={form.enabled}
             onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-            className="h-5 w-5 accent-grape"
+            className="h-5 w-5 accent-ink"
           />
           开启本轮
         </label>
@@ -141,7 +144,7 @@ function PoolConfigCard({
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          className="min-h-11 rounded-full bg-grape px-5 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
+          className="min-h-11 rounded-full bg-ink px-5 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
         >
           {saving ? '保存中…' : '保存配置'}
         </button>
@@ -150,7 +153,15 @@ function PoolConfigCard({
   )
 }
 
-function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void }) {
+function PrizeRow({
+  base,
+  prize,
+  onChanged,
+}: {
+  base: string
+  prize: Prize
+  onChanged: () => void
+}) {
   const { toast } = useToast()
   const [form, setForm] = useState<PrizeIn>({
     round: prize.round,
@@ -172,7 +183,7 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
     if (saving) return
     setSaving(true)
     try {
-      await api.put(`/api/admin/prizes/${prize.id}`, form)
+      await api.put(`${base}/admin/prizes/${prize.id}`, form)
       toast('奖品已保存', 'success')
       onChanged()
     } catch (e) {
@@ -185,7 +196,7 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
   const remove = async () => {
     if (!window.confirm(`确定删除/下架奖品「${prize.name}」吗？`)) return
     try {
-      await api.del(`/api/admin/prizes/${prize.id}`)
+      await api.del(`${base}/admin/prizes/${prize.id}`)
       toast('已删除（若已被抽中则自动改为下架）', 'success')
       onChanged()
     } catch (e) {
@@ -196,7 +207,7 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
   const importCodes = async () => {
     if (!codes.trim()) return
     try {
-      const res = await api.post<{ imported: number }>(`/api/admin/prizes/${prize.id}/codes`, {
+      const res = await api.post<{ imported: number }>(`${base}/admin/prizes/${prize.id}/codes`, {
         codes,
       })
       toast(`成功导入 ${res.imported} 个兑换码`, 'success')
@@ -210,13 +221,13 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
 
   return (
     <div
-      className={`rounded-2xl border-2 bg-white p-4 shadow-card ${
-        form.active ? 'border-grape/10' : 'border-grape/10 opacity-60'
+      className={`rounded-2xl border-2 bg-white p-4 shadow-sticker ${
+        form.active ? 'border-ink' : 'border-ink opacity-60'
       }`}
     >
       <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-40 flex-1">
-          <span className="mb-1 block text-xs font-bold text-grape/60">名称</span>
+          <span className="mb-1 block text-xs font-bold text-ink/60">名称</span>
           <input
             className={inputCls}
             value={form.name}
@@ -225,7 +236,7 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
           />
         </label>
         <label className="w-24">
-          <span className="mb-1 block text-xs font-bold text-grape/60">档位</span>
+          <span className="mb-1 block text-xs font-bold text-ink/60">档位</span>
           <input
             className={inputCls}
             value={form.tier}
@@ -248,12 +259,12 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
           value={form.daily_quota}
           onChange={(v) => setForm({ ...form, daily_quota: v })}
         />
-        <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-grape">
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-ink">
           <input
             type="checkbox"
             checked={form.active}
             onChange={(e) => setForm({ ...form, active: e.target.checked })}
-            className="h-5 w-5 accent-grape"
+            className="h-5 w-5 accent-ink"
           />
           上架
         </label>
@@ -262,20 +273,20 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
             type="button"
             onClick={() => void save()}
             disabled={saving}
-            className="min-h-11 rounded-full bg-grape px-5 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
+            className="min-h-11 rounded-full bg-ink px-5 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
           >
             {saving ? '…' : '保存'}
           </button>
           <button
             type="button"
             onClick={() => void remove()}
-            className="min-h-11 rounded-full border-2 border-tangerine/40 px-4 text-sm font-bold text-tangerine hover:bg-tangerine/10"
+            className="min-h-11 rounded-full border-2 border-blush/40 px-4 text-sm font-bold text-blush hover:bg-blush/10"
           >
             删除
           </button>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-grape/50">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink/50">
         <span>
           已发 {prize.issued}/{prize.total_stock}
         </span>
@@ -285,14 +296,14 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
             <button
               type="button"
               onClick={() => setShowCodes(!showCodes)}
-              className="font-bold text-grape underline underline-offset-2"
+              className="font-bold text-ink underline underline-offset-2"
             >
               {showCodes ? '收起导入' : '导入兑换码'}
             </button>
           </>
         )}
         {prize.is_virtual && (
-          <span className="rounded bg-sky-pop/20 px-2 py-0.5 font-bold">虚拟奖品</span>
+          <span className="rounded bg-sky/20 px-2 py-0.5 font-bold">虚拟奖品</span>
         )}
       </div>
       {showCodes && prize.is_virtual && (
@@ -301,12 +312,12 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
             value={codes}
             onChange={(e) => setCodes(e.target.value)}
             placeholder={'粘贴兑换码，一行一个\n例如：\nTOKEN-AAAA-1111\nTOKEN-BBBB-2222'}
-            className="min-h-24 w-full rounded-xl border-2 border-grape/15 p-3 font-mono text-xs outline-none focus:border-grape"
+            className="min-h-24 w-full rounded-xl border-2 border-ink/40 p-3 font-mono text-xs outline-none focus:border-ink"
           />
           <button
             type="button"
             onClick={() => void importCodes()}
-            className="min-h-11 rounded-full bg-mint px-5 text-sm font-bold text-grape-dark"
+            className="min-h-11 rounded-full bg-leaf px-5 text-sm font-bold text-ink"
           >
             确认导入
           </button>
@@ -316,7 +327,15 @@ function PrizeRow({ prize, onChanged }: { prize: Prize; onChanged: () => void })
   )
 }
 
-function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => void }) {
+function NewPrizeForm({
+  base,
+  round,
+  onCreated,
+}: {
+  base: string
+  round: number
+  onCreated: () => void
+}) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<PrizeIn>(EMPTY_PRIZE(round))
@@ -327,7 +346,7 @@ function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => vo
     if (saving) return
     setSaving(true)
     try {
-      await api.post('/api/admin/prizes', form)
+      await api.post(`${base}/admin/prizes`, form)
       toast('奖品已创建', 'success')
       setForm(EMPTY_PRIZE(round))
       setOpen(false)
@@ -344,7 +363,7 @@ function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => vo
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="min-h-11 w-full rounded-2xl border-2 border-dashed border-grape/30 text-sm font-bold text-grape/60 transition-colors hover:border-grape hover:text-grape"
+        className="min-h-11 w-full rounded-2xl border-2 border-dashed border-ink/30 text-sm font-bold text-ink/60 transition-colors hover:border-ink hover:text-ink"
       >
         ＋ 新增第 {round} 轮奖品
       </button>
@@ -354,11 +373,11 @@ function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => vo
   return (
     <form
       onSubmit={submit}
-      className="space-y-3 rounded-2xl border-2 border-grape/20 bg-white p-4 shadow-card"
+      className="space-y-3 rounded-2xl border-2 border-ink/20 bg-white p-4 shadow-sticker"
     >
       <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-40 flex-1">
-          <span className="mb-1 block text-xs font-bold text-grape/60">名称 *</span>
+          <span className="mb-1 block text-xs font-bold text-ink/60">名称 *</span>
           <input
             className={inputCls}
             value={form.name}
@@ -368,7 +387,7 @@ function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => vo
           />
         </label>
         <label className="w-24">
-          <span className="mb-1 block text-xs font-bold text-grape/60">档位</span>
+          <span className="mb-1 block text-xs font-bold text-ink/60">档位</span>
           <input
             className={inputCls}
             value={form.tier}
@@ -391,12 +410,12 @@ function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => vo
           value={form.daily_quota}
           onChange={(v) => setForm({ ...form, daily_quota: v })}
         />
-        <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-grape">
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-ink">
           <input
             type="checkbox"
             checked={form.is_virtual}
             onChange={(e) => setForm({ ...form, is_virtual: e.target.checked })}
-            className="h-5 w-5 accent-grape"
+            className="h-5 w-5 accent-ink"
           />
           虚拟奖品
         </label>
@@ -405,14 +424,14 @@ function NewPrizeForm({ round, onCreated }: { round: number; onCreated: () => vo
         <button
           type="submit"
           disabled={saving}
-          className="min-h-11 rounded-full bg-tangerine px-6 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
+          className="min-h-11 rounded-full bg-blush px-6 text-sm font-bold text-white shadow-sticker disabled:opacity-50"
         >
           {saving ? '创建中…' : '创建奖品'}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="min-h-11 rounded-full border-2 border-grape/20 px-5 text-sm font-bold text-grape"
+          className="min-h-11 rounded-full border-2 border-ink/20 px-5 text-sm font-bold text-ink"
         >
           取消
         </button>
@@ -432,7 +451,7 @@ function NumberField({
 }) {
   return (
     <label className="w-24">
-      <span className="mb-1 block text-xs font-bold text-grape/60">{label}</span>
+      <span className="mb-1 block text-xs font-bold text-ink/60">{label}</span>
       <input
         className={inputCls}
         type="number"

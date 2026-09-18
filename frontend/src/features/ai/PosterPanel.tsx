@@ -49,21 +49,21 @@ export default function PosterPanel({ onQuotaExceeded }: Props) {
           onKeyDown={(e) => e.key === 'Enter' && void generate()}
           placeholder="一句话描述海报主题，如：百团大战 ICA 招新，青春国际化"
           maxLength={500}
-          className="min-h-12 flex-1 rounded-2xl border-2 border-grape/15 bg-white px-4 text-sm outline-none focus:border-grape"
+          className="min-h-12 flex-1 rounded-2xl border-2 border-ink/40 bg-white px-4 text-sm outline-none focus:border-ink"
         />
         <button
           type="button"
           onClick={() => void generate()}
           disabled={loading || !prompt.trim()}
-          className="min-h-12 shrink-0 rounded-full bg-gradient-to-r from-grape to-grape-light px-6 text-sm font-black text-white shadow-sticker transition-transform active:scale-95 disabled:opacity-50"
+          className="min-h-12 shrink-0 rounded-full bg-gradient-to-r from-ink to-sky-dark px-6 text-sm font-black text-white shadow-sticker transition-transform active:scale-95 disabled:opacity-50"
         >
           {loading ? '生成中…' : '✨ 生成海报'}
         </button>
       </div>
 
       {loading && (
-        <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-grape/20 bg-white text-sm text-grape/50">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-grape/20 border-t-grape" />
+        <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-ink/20 bg-white text-sm text-ink/50">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-ink/20 border-t-ink" />
           AI 正在绘制海报，可能需要十几秒…
         </div>
       )}
@@ -74,7 +74,7 @@ export default function PosterPanel({ onQuotaExceeded }: Props) {
           animate={{ opacity: 1, scale: 1 }}
           className="space-y-3"
         >
-          <div className="img-fallback aspect-[3/4] w-full overflow-hidden rounded-3xl shadow-card">
+          <div className="img-fallback aspect-[3/4] w-full overflow-hidden rounded-3xl shadow-sticker">
             {!imgError ? (
               <img
                 src={imageUrl}
@@ -95,7 +95,7 @@ export default function PosterPanel({ onQuotaExceeded }: Props) {
               href={imageUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-11 flex-1 items-center justify-center rounded-full bg-grape text-sm font-bold text-white shadow-sticker"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-full bg-ink text-sm font-bold text-white shadow-sticker"
             >
               🔗 新窗口查看原图
             </a>
@@ -107,7 +107,7 @@ export default function PosterPanel({ onQuotaExceeded }: Props) {
                   () => toast('复制失败，请手动复制', 'error'),
                 )
               }}
-              className="min-h-11 rounded-full border-2 border-grape/20 px-5 text-sm font-bold text-grape"
+              className="min-h-11 rounded-full border-2 border-ink/20 px-5 text-sm font-bold text-ink"
             >
               复制链接
             </button>

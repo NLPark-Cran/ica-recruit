@@ -1,4 +1,8 @@
-"""观猹 OAuth2 登录（机密客户端 + S256 PKCE）与会话管理。"""
+"""观猹 OAuth2 登录（机密客户端 + S256 PKCE）与会话管理。
+
+角色模型：观猹账号 → 全局 User；平台管理员由 .env ADMIN_WATCHA_IDS 决定；
+社团内角色（staff/admin）存 club_members，登录时在 /auth/me 聚合返回。
+"""
 
 import secrets
 from urllib.parse import urlencode
@@ -10,7 +14,8 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import DB, redis
-from app.models import OAuthAccount, Role, User
+from app.deps import CurrentUser, my_club_roles
+from app.models import OAuthAccount, User
 from app.schemas import UserOut
 from app.security import create_session_token, encrypt_text, new_pkce
 
@@ -18,14 +23,6 @@ settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _STATE_TTL = 600
-
-
-def _role_for(watcha_id: int) -> str:
-    if watcha_id in settings.admin_ids():
-        return Role.admin.value
-    if watcha_id in settings.staff_ids():
-        return Role.staff.value
-    return Role.user.value
 
 
 def _set_session(resp: RedirectResponse, user: User) -> None:
@@ -41,9 +38,11 @@ def _set_session(resp: RedirectResponse, user: User) -> None:
 
 
 @router.get("/watcha/login")
-async def watcha_login(next: str = "/flow"):
+async def watcha_login(next: str = "/"):
     verifier, challenge = new_pkce()
     state = secrets.token_urlsafe(24)
+    if not next.startswith("/"):
+        next = "/"
     await redis.setex(f"oauth:watcha:{state}", _STATE_TTL, f"{verifier}|{next}")
     params = {
         "response_type": "code",
@@ -68,7 +67,7 @@ async def watcha_callback(db: DB, code: str = "", state: str = "", error: str = 
         raise HTTPException(400, "state 已过期或不合法，请重新登录")
     verifier, next_url = raw.split("|", 1)
     if not next_url.startswith("/"):
-        next_url = "/flow"
+        next_url = "/"
 
     form = {
         "grant_type": "authorization_code",
@@ -104,16 +103,15 @@ async def watcha_callback(db: DB, code: str = "", state: str = "", error: str = 
             watcha_user_id=watcha_id,
             nickname=data.get("nickname") or f"用户{watcha_id}",
             avatar_url=data.get("avatar_url") or "",
-            role=_role_for(watcha_id),
+            is_platform_admin=watcha_id in settings.admin_ids(),
         )
         db.add(user)
         await db.flush()
     else:
         user.nickname = data.get("nickname") or user.nickname
         user.avatar_url = data.get("avatar_url") or user.avatar_url
-        # 白名单中的账号每次登录刷新角色；白名单外保留现有角色（含管理员手动提拔的）
-        if watcha_id in settings.admin_ids() or watcha_id in settings.staff_ids():
-            user.role = _role_for(watcha_id)
+        if watcha_id in settings.admin_ids():
+            user.is_platform_admin = True
 
     # 存观猹 token（加密），便于后续刷新
     acct = (
@@ -140,10 +138,7 @@ async def watcha_callback(db: DB, code: str = "", state: str = "", error: str = 
 
 
 @router.get("/me")
-async def me(request: Request, db: DB) -> UserOut:
-    from app.deps import get_current_user  # 避免循环依赖
-
-    user = await get_current_user(request, db)
+async def me(db: DB, user: CurrentUser) -> UserOut:
     has_key = (
         await db.scalar(
             select(OAuthAccount.id).where(OAuthAccount.user_id == user.id, OAuthAccount.provider == "tokendance")
@@ -153,8 +148,9 @@ async def me(request: Request, db: DB) -> UserOut:
         id=str(user.id),
         nickname=user.nickname,
         avatar_url=user.avatar_url,
-        role=user.role,
+        is_platform_admin=user.is_platform_admin,
         has_tokendance_key=has_key,
+        club_roles=await my_club_roles(db, user),
     )
 
 
@@ -166,7 +162,7 @@ async def logout():
 
 
 @router.get("/dev-login")
-async def dev_login(db: DB, watcha_id: int = 1001, request: Request = None):  # type: ignore[assignment]
+async def dev_login(db: DB, request: Request, watcha_id: int = 1001):
     """仅 DEBUG 且本机直连可用的开发登录。"""
     if not settings.debug or request.headers.get("X-Forwarded-For"):
         raise HTTPException(404)
@@ -175,11 +171,11 @@ async def dev_login(db: DB, watcha_id: int = 1001, request: Request = None):  # 
         user = User(
             watcha_user_id=watcha_id,
             nickname=f"开发用户{watcha_id}",
-            role=_role_for(watcha_id),
+            is_platform_admin=watcha_id in settings.admin_ids(),
         )
         db.add(user)
         await db.commit()
         await db.refresh(user)
-    resp = RedirectResponse("/flow")
+    resp = RedirectResponse("/")
     _set_session(resp, user)
     return resp

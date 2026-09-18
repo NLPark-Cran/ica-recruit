@@ -5,9 +5,11 @@ import Protected from '@/components/Protected'
 import Spinner from '@/components/Spinner'
 import Home from '@/pages/Home'
 import Login from '@/pages/Login'
+import Club from '@/pages/Club'
+import NewClub from '@/pages/NewClub'
 import NotFound from '@/pages/NotFound'
 
-// 路由级代码分割：任务流 / 核销台 / 管理后台 / AI 页单独拆包
+// 路由级代码分割：任务流 / 核销台 / 社团后台 / AI 页单独拆包
 const Flow = lazy(() => import('@/pages/Flow'))
 const Redeem = lazy(() => import('@/pages/Redeem'))
 const Admin = lazy(() => import('@/pages/Admin'))
@@ -20,7 +22,16 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="login" element={<Login />} />
         <Route
-          path="flow"
+          path="new-club"
+          element={
+            <Protected>
+              <NewClub />
+            </Protected>
+          }
+        />
+        <Route path="c/:slug" element={<Club />} />
+        <Route
+          path="c/:slug/flow"
           element={
             <Protected>
               <Suspense fallback={<Spinner />}>
@@ -30,9 +41,9 @@ export default function App() {
           }
         />
         <Route
-          path="redeem"
+          path="c/:slug/redeem"
           element={
-            <Protected roles={['staff', 'admin']}>
+            <Protected>
               <Suspense fallback={<Spinner />}>
                 <Redeem />
               </Suspense>
@@ -40,9 +51,9 @@ export default function App() {
           }
         />
         <Route
-          path="admin"
+          path="c/:slug/admin"
           element={
-            <Protected roles={['admin']}>
+            <Protected>
               <Suspense fallback={<Spinner />}>
                 <Admin />
               </Suspense>

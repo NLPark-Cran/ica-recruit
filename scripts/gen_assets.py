@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """用 TokenDance seedream-5.0-pro 生成站点素材并压缩为 WebP。
 
-用法（在 backend/ 目录）：uv run --with pillow python ../scripts/gen_assets.py
+用法（在 backend/ 目录）：uv run --with pillow python ../scripts/gen_assets.py [--force]
 输出到项目根 assets/。已存在且非 --force 时跳过。
 """
 
@@ -28,13 +28,17 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-STYLE = "扁平插画风，几何撞色，奶油白背景，深紫与靛蓝为主色、荧光橙点缀，年轻活力，大学校园社团氛围，无文字"
+# 观猹开学季风：天蓝 + 草绿 + 柠檬黄，粗描边卡通，手账贴纸质感
+STYLE = (
+    "可爱卡通插画风，粗描边，手账贴纸质感，蓝天白云绿草地校园场景，"
+    "天蓝色、草绿色、柠檬黄为主色，配色明亮清新，人物可爱圆脸，年轻活力，画面无文字"
+)
 
 TASKS = [
-    ("hero", 1600, "横版16:9宽幅主视觉插画：一群不同肤色的年轻人举着各国小国旗围成半圆欢呼，中间一个巨大的地球仪，彩带与纸飞机飞过，" + STYLE),
-    ("act-1", 800, "横版4:3插画：英语角活动，十几个大学生围坐在户外草坪圆桌旁开心交谈，头顶有英文对话气泡，" + STYLE),
-    ("act-2", 800, "横版4:3插画：模拟联合国会议，大学生们身穿正装坐在会议桌前举牌发言，桌上有各国桌牌，" + STYLE),
-    ("act-3", 800, "横版4:3插画：海外交换分享会，一位学生在投影幕前分享世界地图背景的幻灯片，台下同学举手提问，" + STYLE),
+    ("hero", 1600, "横版16:9宽幅主视觉插画：大学校园社团招新集市，五颜六色的摊位和彩旗气球，中外学生开心交流，远处有教学楼和钟楼，" + STYLE),
+    ("act-visit", 800, "横版4:3插画：中国学生在校园门口热情迎接海外访学团，大家挥手微笑，背景是教学楼与梧桐树，" + STYLE),
+    ("act-share", 800, "横版4:3插画：留学分享会，一位学长在讲台上分享，投影幕布是世界地图，台下同学认真听并举手，" + STYLE),
+    ("act-volunteer", 800, "横版4:3插画：穿柠檬黄马甲的学生志愿者们在活动现场引导方向、搬物料，干劲十足，" + STYLE),
     ("prize-candy", 400, "正方形图标插画：彩色糖果小礼包，玻璃纸包装糖果散落，" + STYLE),
     ("prize-postcard", 400, "正方形图标插画：一叠世界风景手绘明信片，" + STYLE),
     ("prize-badge", 400, "正方形图标插画：一枚圆形珐琅徽章，图案是地球与握手，" + STYLE),
@@ -42,7 +46,7 @@ TASKS = [
     ("prize-keychain", 400, "正方形图标插画：飞机与地球造型的金属钥匙扣，" + STYLE),
     ("prize-tote", 400, "正方形图标插画：米色帆布包，上面印着简约地球与航线图案，" + STYLE),
     ("prize-stationery", 400, "正方形图标插画：国际风文具套装，笔记本钢笔和各国旗帜贴纸，" + STYLE),
-    ("prize-tdcard", 400, "正方形图标插画：一张渐变色会员卡，卡片上有闪电符号与星星，紫色到橙色渐变，" + STYLE),
+    ("prize-tdcard", 400, "正方形图标插画：一张渐变纪念卡片，卡片上有星星与闪电图案，紫色到橙色渐变，" + STYLE),
 ]
 
 SEM = asyncio.Semaphore(3)
@@ -52,24 +56,18 @@ async def gen_one(client: httpx.AsyncClient, name: str, maxw: int, prompt: str) 
     webp = OUT / f"{name}.webp"
     if webp.exists() and "--force" not in sys.argv:
         return f"skip {name}"
-    for size in ("2K",):
-        resp = await client.post(
-            API,
-            headers=HEADERS,
-            json={
-                "model": MODEL,
-                "prompt": prompt,
-                "size": size,
-                "output_format": "png",
-                "response_format": "url",
-                "watermark": False,
-            },
-        )
-        if resp.status_code == 200:
-            break
-        last = resp.text[:300]
-    else:
-        return f"FAIL {name}: {last}"
+    resp = await client.post(
+        API,
+        headers=HEADERS,
+        json={
+            "model": MODEL,
+            "prompt": prompt,
+            "size": "2K",
+            "output_format": "png",
+            "response_format": "url",
+            "watermark": False,
+        },
+    )
     if resp.status_code != 200:
         return f"FAIL {name}: {resp.text[:300]}"
     url = resp.json()["data"][0]["url"]

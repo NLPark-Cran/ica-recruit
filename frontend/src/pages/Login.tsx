@@ -12,7 +12,7 @@ const ERROR_TEXT: Record<string, string> = {
 /** 仅允许站内相对路径，防止 open redirect */
 function safeNext(raw: string | null): string {
   if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw
-  return '/flow'
+  return '/'
 }
 
 export default function Login() {
@@ -35,18 +35,18 @@ export default function Login() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex w-full max-w-sm flex-col items-center gap-6 rounded-[2rem] border-2 border-grape/10 bg-white p-8 text-center shadow-card"
+        className="card flex w-full max-w-sm flex-col items-center gap-6 p-8 text-center"
       >
         <div className="space-y-2">
-          <h1 className="text-3xl font-black text-grape">欢迎回来 👋</h1>
-          <p className="text-sm leading-relaxed text-grape/60">
-            使用观猹账号一键登录，参与 ICA 招新任务、抽好礼、领联名 Token 卡。
+          <h1 className="text-3xl font-black text-ink">欢迎回来 👋</h1>
+          <p className="text-sm leading-relaxed font-bold text-ink/50">
+            使用观猹账号一键登录，参与社团招新任务、抽好礼、领联名 Token 卡。
           </p>
         </div>
 
         {errorText && (
           <div
-            className="w-full rounded-2xl bg-tangerine/10 px-4 py-3 text-sm font-bold text-tangerine"
+            className="w-full rounded-2xl border-[3px] border-ink bg-blush px-4 py-3 text-sm font-black text-ink"
             role="alert"
           >
             ⚠️ {errorText}
@@ -56,18 +56,28 @@ export default function Login() {
         <motion.a
           href={loginUrl}
           whileTap={{ scale: 0.92 }}
-          className="flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-full bg-gradient-to-br from-grape to-grape-light text-white shadow-sticker transition-transform hover:scale-105"
+          className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-full border-[3px] border-ink bg-sky shadow-sticker transition-transform hover:scale-105"
           aria-label="使用观猹账号登录"
         >
-          <span className="text-5xl" aria-hidden>
-            🦦
+          <span className="text-lg font-black text-ink" aria-hidden>
+            观猹
           </span>
-          <span className="text-xs font-black tracking-wide">观猹登录</span>
+          <img
+            src="/assets/watcha-logo.webp"
+            alt="观猹"
+            width={144}
+            height={144}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         </motion.a>
+        <p className="-mt-3 text-sm font-black text-ink">使用观猹账号登录</p>
 
-        <p className="text-xs leading-relaxed text-grape/40">
-          登录即表示同意在现场活动中使用你的昵称参与抽奖与报名
-          {next !== '/flow' && <span className="block">登录后将跳转回 {next}</span>}
+        <p className="text-xs leading-relaxed font-bold text-ink/40">
+          登录即表示同意在招新活动中使用你的昵称参与抽奖与报名
+          {next !== '/' && <span className="block">登录后将跳转回 {next}</span>}
         </p>
       </motion.div>
     </div>

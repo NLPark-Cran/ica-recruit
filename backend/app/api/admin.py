@@ -1,4 +1,4 @@
-"""管理后台：仪表盘统计、奖池配置、兑换码导入、CSV 导出、用户角色管理。"""
+"""社团管理后台：仪表盘统计、奖池配置、兑换码导入、CSV 导出。"""
 
 import csv
 import io
@@ -10,11 +10,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from app.db import DB
-from app.deps import AdminUser
-from app.models import Application, Draw, PoolConfig, Prize, PrizeCode, Role, User
+from app.deps import ClubAdmin, ClubDep
+from app.models import Application, Draw, PoolConfig, Prize, PrizeCode, User
 from app.schemas import PoolConfigIn, PrizeIn, PrizeOut
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/clubs/{slug}/admin", tags=["club-admin"])
 
 CST = timezone(timedelta(hours=8))
 
@@ -42,16 +42,18 @@ def _prize_out(p: Prize, codes_left: int = 0) -> dict:
 
 
 @router.get("/stats")
-async def stats(db: DB, admin: AdminUser):
+async def stats(db: DB, club: ClubDep, admin: ClubAdmin):
     today_start = datetime.now(CST).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
-    users = await db.scalar(select(func.count(User.id)))
-    apps = await db.scalar(select(func.count(Application.id)))
-    out: dict = {"users": users, "applications": apps, "rounds": []}
+    cid = club.id
+    apps = await db.scalar(select(func.count(Application.id)).where(Application.club_id == cid))
+    visitors = await db.scalar(select(func.count(func.distinct(Draw.user_id))).where(Draw.club_id == cid))
+    out: dict = {"visitors": visitors, "applications": apps, "rounds": []}
     for r in (1, 2):
-        total = await db.scalar(select(func.count(Draw.id)).where(Draw.round == r))
-        wins = await db.scalar(select(func.count(Draw.id)).where(Draw.round == r, Draw.prize_id.is_not(None)))
-        redeemed = await db.scalar(select(func.count(Draw.id)).where(Draw.round == r, Draw.redeemed_at.is_not(None)))
-        today = await db.scalar(select(func.count(Draw.id)).where(Draw.round == r, Draw.created_at >= today_start))
+        base = select(func.count(Draw.id)).where(Draw.club_id == cid, Draw.round == r)
+        total = await db.scalar(base)
+        wins = await db.scalar(base.where(Draw.prize_id.is_not(None)))
+        redeemed = await db.scalar(base.where(Draw.redeemed_at.is_not(None)))
+        today = await db.scalar(base.where(Draw.created_at >= today_start))
         out["rounds"].append(
             {
                 "round": r,
@@ -69,8 +71,12 @@ async def stats(db: DB, admin: AdminUser):
 
 
 @router.get("/prizes")
-async def list_prizes(db: DB, admin: AdminUser):
-    rows = (await db.execute(select(Prize).order_by(Prize.round, Prize.sort))).scalars().all()
+async def list_prizes(db: DB, club: ClubDep, admin: ClubAdmin):
+    rows = (
+        (await db.execute(select(Prize).where(Prize.club_id == club.id).order_by(Prize.round, Prize.sort)))
+        .scalars()
+        .all()
+    )
     result = []
     for p in rows:
         left = 0
@@ -79,18 +85,24 @@ async def list_prizes(db: DB, admin: AdminUser):
                 select(func.count(PrizeCode.id)).where(PrizeCode.prize_id == p.id, PrizeCode.draw_id.is_(None))
             )
         result.append(_prize_out(p, left or 0))
-    cfgs = (await db.execute(select(PoolConfig))).scalars().all()
+    cfgs = (await db.execute(select(PoolConfig).where(PoolConfig.club_id == club.id))).scalars().all()
     return {
         "prizes": result,
         "configs": [
-            {"round": c.round, "lose_weight": c.lose_weight, "enabled": c.enabled, "title": c.title} for c in cfgs
+            {
+                "round": c.round,
+                "lose_weight": c.lose_weight,
+                "enabled": c.enabled,
+                "title": c.title,
+            }
+            for c in cfgs
         ],
     }
 
 
 @router.post("/prizes", status_code=201)
-async def create_prize(db: DB, admin: AdminUser, body: PrizeIn):
-    p = Prize(**body.model_dump())
+async def create_prize(db: DB, club: ClubDep, admin: ClubAdmin, body: PrizeIn):
+    p = Prize(club_id=club.id, **body.model_dump())
     db.add(p)
     await db.commit()
     await db.refresh(p)
@@ -98,9 +110,9 @@ async def create_prize(db: DB, admin: AdminUser, body: PrizeIn):
 
 
 @router.put("/prizes/{prize_id}")
-async def update_prize(db: DB, admin: AdminUser, prize_id: uuid.UUID, body: PrizeIn):
+async def update_prize(db: DB, club: ClubDep, admin: ClubAdmin, prize_id: uuid.UUID, body: PrizeIn):
     p = await db.get(Prize, prize_id)
-    if not p:
+    if not p or p.club_id != club.id:
         raise HTTPException(404, "奖品不存在")
     for k, v in body.model_dump().items():
         setattr(p, k, v)
@@ -110,9 +122,9 @@ async def update_prize(db: DB, admin: AdminUser, prize_id: uuid.UUID, body: Priz
 
 
 @router.delete("/prizes/{prize_id}")
-async def delete_prize(db: DB, admin: AdminUser, prize_id: uuid.UUID):
+async def delete_prize(db: DB, club: ClubDep, admin: ClubAdmin, prize_id: uuid.UUID):
     p = await db.get(Prize, prize_id)
-    if not p:
+    if not p or p.club_id != club.id:
         raise HTTPException(404, "奖品不存在")
     used = await db.scalar(select(func.count(Draw.id)).where(Draw.prize_id == p.id))
     if used:
@@ -125,12 +137,14 @@ async def delete_prize(db: DB, admin: AdminUser, prize_id: uuid.UUID):
 
 
 @router.put("/pool/{round_no}")
-async def update_pool(db: DB, admin: AdminUser, round_no: int, body: PoolConfigIn):
+async def update_pool(db: DB, club: ClubDep, admin: ClubAdmin, round_no: int, body: PoolConfigIn):
     if round_no not in (1, 2):
         raise HTTPException(400, "无效轮次")
-    cfg = await db.get(PoolConfig, round_no)
+    cfg = (
+        await db.execute(select(PoolConfig).where(PoolConfig.club_id == club.id, PoolConfig.round == round_no))
+    ).scalar_one_or_none()
     if not cfg:
-        cfg = PoolConfig(round=round_no)
+        cfg = PoolConfig(club_id=club.id, round=round_no)
         db.add(cfg)
     cfg.lose_weight = body.lose_weight
     cfg.enabled = body.enabled
@@ -140,10 +154,10 @@ async def update_pool(db: DB, admin: AdminUser, round_no: int, body: PoolConfigI
 
 
 @router.post("/prizes/{prize_id}/codes")
-async def import_codes(db: DB, admin: AdminUser, prize_id: uuid.UUID, body: dict):
+async def import_codes(db: DB, club: ClubDep, admin: ClubAdmin, prize_id: uuid.UUID, body: dict):
     """批量导入兑换码：{"codes": "一行一个"}。"""
     p = await db.get(Prize, prize_id)
-    if not p or not p.is_virtual:
+    if not p or p.club_id != club.id or not p.is_virtual:
         raise HTTPException(400, "奖品不存在或非虚拟奖品")
     codes = [c.strip() for c in (body.get("codes") or "").splitlines() if c.strip()]
     for c in codes:
@@ -172,8 +186,12 @@ def _csv(filename: str, header: list[str], rows: list[list]) -> StreamingRespons
 
 
 @router.get("/export/applications.csv")
-async def export_applications(db: DB, admin: AdminUser):
-    rows = (await db.execute(select(Application).order_by(Application.created_at))).scalars().all()
+async def export_applications(db: DB, club: ClubDep, admin: ClubAdmin):
+    rows = (
+        (await db.execute(select(Application).where(Application.club_id == club.id).order_by(Application.created_at)))
+        .scalars()
+        .all()
+    )
     return _csv(
         "applications.csv",
         ["姓名", "学号", "学院", "年级", "电话", "微信号", "意向部门", "服从调剂", "自我介绍", "报名时间"],
@@ -196,8 +214,8 @@ async def export_applications(db: DB, admin: AdminUser):
 
 
 @router.get("/export/draws.csv")
-async def export_draws(db: DB, admin: AdminUser):
-    q = select(Draw, User).join(User, Draw.user_id == User.id).order_by(Draw.created_at)
+async def export_draws(db: DB, club: ClubDep, admin: ClubAdmin):
+    q = select(Draw, User).join(User, Draw.user_id == User.id).where(Draw.club_id == club.id).order_by(Draw.created_at)
     rows = (await db.execute(q)).all()
     return _csv(
         "draws.csv",
@@ -216,19 +234,3 @@ async def export_draws(db: DB, admin: AdminUser):
             for d, u in rows
         ],
     )
-
-
-# ---------- 用户角色 ----------
-
-
-@router.put("/users/{watcha_user_id}/role")
-async def set_role(db: DB, admin: AdminUser, watcha_user_id: int, body: dict):
-    role = body.get("role", "")
-    if role not in {r.value for r in Role}:
-        raise HTTPException(400, "无效角色")
-    u = (await db.execute(select(User).where(User.watcha_user_id == watcha_user_id))).scalar_one_or_none()
-    if not u:
-        raise HTTPException(404, "用户不存在（对方需先登录一次）")
-    u.role = role
-    await db.commit()
-    return {"ok": True, "role": role}

@@ -24,7 +24,6 @@ os.environ.update(
     }
 )
 
-
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import delete, select  # noqa: E402
@@ -32,15 +31,22 @@ from sqlalchemy import delete, select  # noqa: E402
 from app.db import SessionLocal, engine, redis  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
+    Activity,
     Application,
     Base,
+    Club,
+    ClubMember,
     Draw,
+    OAuthAccount,
     PoolConfig,
     Prize,
     PrizeCode,
+    UsageCounter,
     User,
 )
 from app.security import create_session_token  # noqa: E402
+
+SLUG = "testclub"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -55,7 +61,19 @@ async def _prepare_db():
 @pytest.fixture(autouse=True)
 async def _clean():
     async with SessionLocal() as db:
-        for t in (PrizeCode, Draw, Prize, PoolConfig, Application, User):
+        for t in (
+            PrizeCode,
+            Draw,
+            Prize,
+            PoolConfig,
+            Application,
+            Activity,
+            ClubMember,
+            Club,
+            OAuthAccount,
+            UsageCounter,
+            User,
+        ):
             await db.execute(delete(t))
         await db.commit()
     await redis.flushdb()
@@ -71,22 +89,47 @@ async def make_user(watcha_id: int = 1001) -> User:
         return u
 
 
+async def make_club(owner: User, slug: str = SLUG, departments=None) -> Club:
+    async with SessionLocal() as db:
+        c = Club(
+            slug=slug,
+            name="测试社团",
+            departments=departments if departments is not None else ["宣传部", "组织部"],
+            owner_id=owner.id,
+        )
+        db.add(c)
+        await db.flush()
+        db.add(ClubMember(club_id=c.id, user_id=owner.id, role="admin"))
+        await db.commit()
+        await db.refresh(c)
+        return c
+
+
 def cookie_for(user: User) -> dict[str, str]:
     return {"ica_session": create_session_token(user.id)}
 
 
-async def make_prize(**kw) -> Prize:
+async def make_prize(club: Club, **kw) -> Prize:
     async with SessionLocal() as db:
-        p = Prize(**{"round": 1, "name": "测试奖品", "total_stock": 10, "weight": 100, **kw})
+        p = Prize(
+            **{
+                "club_id": club.id,
+                "round": 1,
+                "name": "测试奖品",
+                "total_stock": 10,
+                "weight": 100,
+                **kw,
+            }
+        )
         db.add(p)
         await db.commit()
         await db.refresh(p)
         return p
 
 
-async def make_pool(round_no: int = 1, lose_weight: int = 0) -> None:
+async def make_pool(club: Club, round_no: int = 1, lose_weight: int = 0) -> None:
     async with SessionLocal() as db:
-        db.add(PoolConfig(round=round_no, lose_weight=lose_weight, enabled=True))
+        db.add(PoolConfig(club_id=club.id, round=round_no, lose_weight=lose_weight, enabled=True))
         await db.commit()
 
 
