@@ -1,6 +1,6 @@
 """现场核销（工作人员）：扫码/输码 → 原子核销，多设备安全。"""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 from fastapi import APIRouter
 from sqlalchemy import select
@@ -9,6 +9,8 @@ from app.db import DB
 from app.deps import StaffUser
 from app.models import Draw, Prize, User
 from app.schemas import RedeemIn, RedeemOut
+
+CST = timezone(timedelta(hours=8))
 
 router = APIRouter(prefix="/redeem", tags=["redeem"])
 
@@ -27,7 +29,7 @@ async def redeem(db: DB, staff: StaffUser, body: RedeemIn) -> RedeemOut:
             round=d.round,
             prize_name=d.prize_name,
             redeemed_at=d.redeemed_at,
-            message=f"该码已于 {d.redeemed_at.astimezone().strftime('%H:%M:%S')} 被 "
+            message=f"该码已于 {d.redeemed_at.astimezone(CST).strftime('%H:%M:%S')} 被 "
             f"{operator.nickname if operator else '他人'} 核销，请勿重复发奖",
         )
     d.redeemed_at = datetime.now(UTC)

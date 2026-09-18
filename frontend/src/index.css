@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+@theme {
+  /* 品牌色板：奶油白底 + 深紫/靛蓝主色 + 荧光橙点缀 */
+  --color-cream: #fff9f0;
+  --color-cream-dark: #f7ecdc;
+  --color-grape: #3d2c8d;
+  --color-grape-dark: #2b1e6b;
+  --color-grape-light: #6c5ce7;
+  --color-tangerine: #ff6b35;
+  --color-tangerine-light: #ffa07a;
+  --color-lemon: #ffd166;
+  --color-mint: #06d6a0;
+  --color-sky-pop: #4cc9f0;
+
+  --font-sans:
+    system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', sans-serif;
+
+  --shadow-sticker: 0 4px 0 0 rgb(61 44 141 / 0.9);
+  --shadow-card: 0 10px 30px -12px rgb(61 44 141 / 0.25);
+
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.92) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-grape-dark);
+  font-family: var(--font-sans);
+}
+
+/* 安全区适配（iPhone 刘海/底部横条） */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 图片加载失败时的渐变兜底背景 */
+.img-fallback {
+  background: linear-gradient(
+    135deg,
+    var(--color-grape) 0%,
+    var(--color-grape-light) 55%,
+    var(--color-tangerine) 130%
+  );
+}

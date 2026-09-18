@@ -111,7 +111,9 @@ async def watcha_callback(db: DB, code: str = "", state: str = "", error: str = 
     else:
         user.nickname = data.get("nickname") or user.nickname
         user.avatar_url = data.get("avatar_url") or user.avatar_url
-        user.role = _role_for(watcha_id)
+        # 白名单中的账号每次登录刷新角色；白名单外保留现有角色（含管理员手动提拔的）
+        if watcha_id in settings.admin_ids() or watcha_id in settings.staff_ids():
+            user.role = _role_for(watcha_id)
 
     # 存观猹 token（加密），便于后续刷新
     acct = (
