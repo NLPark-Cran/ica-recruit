@@ -1,0 +1,19 @@
+[Unit]
+Description=ICA 招新平台后端 (FastAPI/uvicorn)
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/workspace/test0607/clubshelp/backend
+ExecStart=/root/.local/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8020 --workers 2
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+# 基本加固
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

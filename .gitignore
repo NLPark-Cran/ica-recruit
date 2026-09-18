@@ -1,0 +1,29 @@
+# 密钥与环境
+.env
+.env.*
+!.env.example
+.refs/
+
+# 参考材料（含敏感信息，不入库）
+*.docx
+*.zip
+
+# AI 生成素材（可用 scripts/gen_assets.py 重新生成）
+assets/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# 系统
+.DS_Store
+nohup.out
+*.log
