@@ -17,6 +17,10 @@ async def get_current_user(request: Request, db: DB) -> User:
     user = await _maybe_user(request, db)
     if not user:
         raise HTTPException(401, "未登录")
+    # 平台管理员白名单即时生效（不依赖重新登录）
+    if not user.is_platform_admin and user.watcha_user_id in settings.admin_ids():
+        user.is_platform_admin = True
+        await db.commit()
     return user
 
 

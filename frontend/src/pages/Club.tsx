@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import Spinner from '@/components/Spinner'
 import { api, ApiError } from '@/lib/api'
+import { clubRole } from '@/lib/roles'
 import { useAuth } from '@/hooks/useAuth'
 import type { Activity, Club } from '@/lib/types'
 
@@ -51,10 +52,24 @@ export default function Club() {
   }
   if (!club) return <Spinner />
 
-  const isStaff = club.my_role === 'staff' || club.my_role === 'admin'
+  const role = clubRole(user, slug)
+  const isStaff = role === 'staff' || role === 'admin'
 
   return (
     <div className="space-y-10 py-6">
+      {/* 工作人员快捷入口（置顶醒目） */}
+      {isStaff && (
+        <div className="flex flex-wrap gap-3">
+          <Link to={`/c/${slug}/redeem`} className="btn-lemon min-h-12 flex-1 text-base">
+            🎫 核销台
+          </Link>
+          {role === 'admin' && (
+            <Link to={`/c/${slug}/admin`} className="btn-sky min-h-12 flex-1 text-base">
+              🛠️ 社团后台
+            </Link>
+          )}
+        </div>
+      )}
       {/* 社团头部 */}
       <section className="card flex flex-col items-center gap-4 bg-sky/20 p-8 text-center sm:p-10">
         {club.logo_url ? (
@@ -167,7 +182,7 @@ export default function Club() {
               <p className="text-xs font-bold text-ink/50">现场扫码/输码发奖</p>
             </div>
           </Link>
-          {club.my_role === 'admin' && (
+          {role === 'admin' && (
             <Link
               to={`/c/${slug}/admin`}
               className="card flex items-center gap-3 bg-sky/40 p-5 transition-transform hover:-translate-y-1"

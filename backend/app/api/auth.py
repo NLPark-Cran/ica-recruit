@@ -154,6 +154,17 @@ async def me(db: DB, user: CurrentUser) -> UserOut:
     )
 
 
+@router.patch("/me")
+async def update_me(db: DB, user: CurrentUser, body: dict):
+    """修改平台内昵称。"""
+    nickname = (body or {}).get("nickname", "").strip()
+    if not (1 <= len(nickname) <= 24):
+        raise HTTPException(400, "昵称需 1-24 个字符")
+    user.nickname = nickname
+    await db.commit()
+    return {"ok": True, "nickname": nickname}
+
+
 @router.post("/logout")
 async def logout():
     resp = RedirectResponse("/", status_code=303)

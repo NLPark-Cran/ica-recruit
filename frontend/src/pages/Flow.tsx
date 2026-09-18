@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import Spinner from '@/components/Spinner'
 import { api } from '@/lib/api'
+import { clubRole } from '@/lib/roles'
+import { useAuth } from '@/hooks/useAuth'
 import type { Club, LotteryStatus } from '@/lib/types'
 import ApplicationForm from '@/features/flow/ApplicationForm'
 import DrawCard from '@/features/flow/DrawCard'
@@ -9,6 +11,7 @@ import DrawCard from '@/features/flow/DrawCard'
 /** 社团招新任务流：进群礼抽奖 → 填写报名表 → 报名礼抽奖 */
 export default function Flow() {
   const { slug = '' } = useParams()
+  const { user } = useAuth()
   const base = `/api/clubs/${slug}`
   const [club, setClub] = useState<Club | null>(null)
   const [status, setStatus] = useState<LotteryStatus | null>(null)
@@ -46,6 +49,7 @@ export default function Flow() {
   if (!status || !club) return <Spinner />
 
   const cardUrl = status.card_url || club.card_url
+  const role = clubRole(user, slug)
   const round1 = status.rounds.find((r) => r.round === 1)
   const round2 = status.rounds.find((r) => r.round === 2)
   const steps = [
@@ -88,6 +92,27 @@ export default function Flow() {
           </li>
         ))}
       </ol>
+
+      {/* 工作人员快捷入口条 */}
+      {role && (
+        <div className="flex items-center gap-2 rounded-2xl border-[3px] border-ink bg-white p-2 shadow-sticker">
+          <span className="sticker shrink-0 bg-blush text-[10px]">工作通道</span>
+          <Link
+            to={`/c/${slug}/redeem`}
+            className="btn-lemon min-h-9 flex-1 border-2 px-3 py-1 text-xs shadow-sticker-sm"
+          >
+            🎫 核销台
+          </Link>
+          {role === 'admin' && (
+            <Link
+              to={`/c/${slug}/admin`}
+              className="btn-sky min-h-9 flex-1 border-2 px-3 py-1 text-xs shadow-sticker-sm"
+            >
+              🛠️ 后台
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* 第一步：进群礼 */}
       <section className="space-y-3">

@@ -3,6 +3,7 @@ import { useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { Forbidden } from '@/components/Protected'
 import { api, errorMessage } from '@/lib/api'
+import { clubRole } from '@/lib/roles'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/lib/toast'
 import type { RedeemHistoryItem, RedeemOut } from '@/lib/types'
@@ -32,7 +33,7 @@ export default function Redeem() {
   const [scanning, setScanning] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const role = user?.club_roles[slug]
+  const role = clubRole(user, slug)
   const DetectorCtor = getBarcodeDetector()
 
   const loadHistory = async () => {
@@ -184,7 +185,20 @@ export default function Redeem() {
   )
 }
 
-/** 摄像头扫码（BarcodeDetector 可用时渲染） */
+/** 排除长焦/微距等不适合扫码的镜头 */
+const BAD_LENS = /tele|长焦|macro|微距|ultra.?zoom|periscope|潜望/i
+/** 优先选择广角/主摄/后置 */
+const GOOD_LENS = /wide|主摄|main|back|rear|后置|广角/i
+
+/** 从设备列表里挑出最适合扫码的后置主摄 */
+function pickBestCamera(devices: MediaDeviceInfo[]): MediaDeviceInfo | null {
+  if (devices.length === 0) return null
+  const usable = devices.filter((d) => !BAD_LENS.test(d.label))
+  const pool = usable.length > 0 ? usable : devices
+  return pool.find((d) => GOOD_LENS.test(d.label)) ?? pool[0]
+}
+
+/** 摄像头扫码（BarcodeDetector 可用时渲染）；自动避开长焦/微距镜头，支持手动切换 */
 function Scanner({
   Detector,
   onDetect,
@@ -196,40 +210,102 @@ function Scanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState('')
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
+  const [camIndex, setCamIndex] = useState(-1) // -1 = 自动选择（优先主摄/广角）
+  // 记录最新状态供清理函数使用
+  const stateRef = useRef({ cameras, camIndex })
+  stateRef.current = { cameras, camIndex }
 
   useEffect(() => {
     let stream: MediaStream | null = null
     let timer = 0
     let stopped = false
 
+    const stopStream = () => {
+      stream?.getTracks().forEach((t) => t.stop())
+      stream = null
+    }
+
+    /** 尽量把数码变焦拉回最小，避免默认放大 */
+    const resetZoom = () => {
+      const track = stream?.getVideoTracks()[0]
+      if (!track) return
+      try {
+        const caps = (track.getCapabilities?.() ?? {}) as { zoom?: { min: number } }
+        if (caps.zoom) {
+          void track.applyConstraints({
+            advanced: [{ zoom: caps.zoom.min } as MediaTrackConstraintSet],
+          })
+        }
+      } catch {
+        /* 不支持 zoom 控制则忽略 */
+      }
+    }
+
+    const startDetectLoop = () => {
+      const detector = new Detector({ formats: ['qr_code'] })
+      const tick = async () => {
+        if (stopped || !videoRef.current) return
+        try {
+          const codes = await detector.detect(videoRef.current)
+          if (codes.length > 0 && codes[0].rawValue) {
+            onDetect(codes[0].rawValue.trim().toUpperCase())
+            return
+          }
+        } catch {
+          /* 单帧识别失败忽略 */
+        }
+        timer = window.setTimeout(() => void tick(), 300)
+      }
+      void tick()
+    }
+
     const start = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        // 先按 environment 理想约束拿到权限与设备标签
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        })
         if (stopped) {
-          stream.getTracks().forEach((t) => t.stop())
+          stopStream()
           return
         }
+
+        // 枚举摄像头，自动避开长焦/微距
+        const all = (await navigator.mediaDevices.enumerateDevices()).filter(
+          (d) => d.kind === 'videoinput',
+        )
+        setCameras(all)
+
+        const { camIndex: idx } = stateRef.current
+        const target = idx >= 0 && all[idx] ? all[idx] : all.length > 1 ? pickBestCamera(all) : null
+
+        if (target && target.deviceId) {
+          const currentLabel = stream.getVideoTracks()[0]?.label ?? ''
+          if (target.label !== currentLabel) {
+            stopStream()
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                deviceId: { exact: target.deviceId },
+                facingMode: { ideal: 'environment' },
+              },
+            })
+            if (stopped) {
+              stopStream()
+              return
+            }
+          }
+        }
+
+        resetZoom()
+
         const video = videoRef.current
         if (!video) return
         video.srcObject = stream
         await video.play()
-        const detector = new Detector({ formats: ['qr_code'] })
-        const tick = async () => {
-          if (stopped || !videoRef.current) return
-          try {
-            const codes = await detector.detect(videoRef.current)
-            if (codes.length > 0 && codes[0].rawValue) {
-              onDetect(codes[0].rawValue.trim().toUpperCase())
-              return
-            }
-          } catch {
-            /* 单帧识别失败忽略 */
-          }
-          timer = window.setTimeout(() => void tick(), 300)
-        }
-        void tick()
+        startDetectLoop()
       } catch {
-        setError('无法打开摄像头，请检查权限或手动输入')
+        if (!stopped) setError('无法打开摄像头，请检查权限或手动输入')
       }
     }
     void start()
@@ -237,9 +313,14 @@ function Scanner({
     return () => {
       stopped = true
       window.clearTimeout(timer)
-      stream?.getTracks().forEach((t) => t.stop())
+      stopStream()
     }
-  }, [Detector, onDetect])
+  }, [Detector, onDetect, camIndex])
+
+  const switchCamera = () => {
+    if (cameras.length < 2) return
+    setCamIndex((i) => (i + 1) % cameras.length)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-ink/80 p-4" onClick={onClose}>
@@ -256,9 +337,16 @@ function Scanner({
             <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
           )}
         </div>
-        <button type="button" onClick={onClose} className="btn-ghost w-full">
-          取消扫码
-        </button>
+        <div className="flex gap-2">
+          {cameras.length > 1 && (
+            <button type="button" onClick={switchCamera} className="btn-sky flex-1">
+              🔄 切换镜头
+            </button>
+          )}
+          <button type="button" onClick={onClose} className="btn-ghost flex-1">
+            取消扫码
+          </button>
+        </div>
       </div>
     </div>
   )

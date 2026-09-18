@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { Forbidden } from '@/components/Protected'
 import Spinner from '@/components/Spinner'
 import { api } from '@/lib/api'
+import { clubRole } from '@/lib/roles'
 import { useAuth } from '@/hooks/useAuth'
 import type { Club } from '@/lib/types'
 import DashboardTab from '@/features/admin/DashboardTab'
@@ -31,7 +32,7 @@ export default function Admin() {
   const [tab, setTab] = useState<TabKey>('dashboard')
   const [club, setClub] = useState<Club | null>(null)
 
-  const role = user?.club_roles[slug]
+  const role = clubRole(user, slug)
 
   const loadClub = async () => {
     try {
